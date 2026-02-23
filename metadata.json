@@ -1,0 +1,7 @@
+{
+  "name": "CRYNANCE IA CV PRO 2",
+  "description": "Plateforme moderne de génération de CV et lettres de motivation propulsée par l'IA avec export PDF/Word et optimisation ATS.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

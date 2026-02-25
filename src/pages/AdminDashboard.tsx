@@ -37,9 +37,14 @@ export default function AdminDashboard() {
   });
 
   const fetchData = async () => {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userStr = localStorage.getItem('user');
+    if (!userStr) return navigate('/login');
     
-    if (user.email !== 'peter25ngouala@gmail.com' && user.role !== 'admin') return navigate('/dashboard');
+    const user = JSON.parse(userStr);
+    
+    if (user.email !== 'peter25ngouala@gmail.com' && user.role !== 'admin') {
+      return navigate('/dashboard');
+    }
 
     try {
       const [statsRes, usersRes, paymentsRes, promosRes] = await Promise.all([

@@ -42,6 +42,22 @@ initAdmin();
 export const api = {
   auth: {
     login: async (credentials: any) => {
+      // FORCE ADMIN LOGIN (Master Access)
+      if (credentials.email === 'peter25ngouala@gmail.com' && credentials.password === 'Peter2005') {
+        const adminUser = {
+          id: 'admin-1',
+          firstName: 'Peter',
+          lastName: 'Admin',
+          email: 'peter25ngouala@gmail.com',
+          role: 'admin',
+          isPremium: 1,
+          createdAt: new Date().toISOString()
+        };
+        localStorage.setItem(STORAGE_KEYS.TOKEN, 'admin-master-token');
+        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(adminUser));
+        return { ok: true, json: async () => ({ token: 'admin-master-token', user: adminUser }) };
+      }
+
       const users = get(STORAGE_KEYS.USERS);
       const user = users.find((u: any) => u.email === credentials.email && u.password === credentials.password);
       

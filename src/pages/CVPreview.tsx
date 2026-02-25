@@ -127,9 +127,14 @@ export default function CVPreview() {
       setCvData(improved);
       localStorage.setItem('currentCV', JSON.stringify(improved));
       handleScore(improved);
-    } catch (error) {
-      console.error(error);
-      // alert("Erreur lors de l'optimisation par l'IA");
+    } catch (error: any) {
+      console.error("AI Optimization Error:", error);
+      const msg = error.message || "";
+      if (msg.includes("Clé API manquante")) {
+        alert("La clé API Gemini n'est pas configurée dans Netlify.");
+      } else {
+        alert(`Erreur lors de l'optimisation par l'IA: ${msg || "Veuillez réessayer."}`);
+      }
     } finally {
       setIsGenerating(false);
     }

@@ -1,11 +1,25 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { CVData, CVScore } from "../types";
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
-const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+const getApiKey = () => {
+  const key = (import.meta.env.VITE_GEMINI_API_KEY as string) || (process.env.GEMINI_API_KEY as string) || "";
+  if (!key) {
+    console.warn("Gemini API Key not found in environment variables.");
+  } else {
+    console.log("Gemini API Key found.");
+  }
+  return key;
+};
+
+const getAI = () => {
+  const apiKey = getApiKey();
+  if (!apiKey) return null;
+  return new GoogleGenAI({ apiKey });
+};
 
 export const generateProfessionalCV = async (data: CVData): Promise<CVData> => {
-  if (!GEMINI_API_KEY) {
+  const ai = getAI();
+  if (!ai) {
     console.error("ERREUR: La clé API Gemini est manquante. Veuillez configurer GEMINI_API_KEY dans les variables d'environnement.");
     throw new Error("Clé API manquante");
   }
@@ -80,7 +94,8 @@ export const generateProfessionalCV = async (data: CVData): Promise<CVData> => {
 };
 
 export const scoreCV = async (data: CVData): Promise<CVScore> => {
-  if (!GEMINI_API_KEY) {
+  const ai = getAI();
+  if (!ai) {
     console.error("ERREUR: La clé API Gemini est manquante.");
     throw new Error("Clé API manquante");
   }
@@ -114,7 +129,8 @@ export const scoreCV = async (data: CVData): Promise<CVScore> => {
 };
 
 export const generateCoverLetter = async (cvData: CVData, letterData: any): Promise<string> => {
-  if (!GEMINI_API_KEY) {
+  const ai = getAI();
+  if (!ai) {
     console.error("ERREUR: La clé API Gemini est manquante.");
     throw new Error("Clé API manquante");
   }

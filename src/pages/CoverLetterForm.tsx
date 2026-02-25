@@ -65,11 +65,12 @@ export default function CoverLetterForm() {
       localStorage.setItem('currentLetter', JSON.stringify({ data, content }));
       navigate('/cover-letter-preview');
     } catch (error: any) {
-      console.error(error);
-      if (error.message === "Clé API manquante") {
-        alert("La clé API Gemini n'est pas configurée. Veuillez contacter l'administrateur.");
+      console.error("Cover Letter Error:", error);
+      const msg = error.message || "";
+      if (msg.includes("Clé API manquante")) {
+        alert("La clé API Gemini n'est pas configurée dans Netlify.");
       } else {
-        alert("Erreur lors de la génération de la lettre");
+        alert(`Erreur lors de la génération de la lettre: ${msg || "Veuillez réessayer."}`);
       }
     } finally {
       setIsGenerating(false);

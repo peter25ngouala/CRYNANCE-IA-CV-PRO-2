@@ -5,7 +5,7 @@ import { Download, FileDown, FileText, ChevronLeft, Loader2, Sparkles, CheckCirc
 import { api } from '../services/api';
 import ReactMarkdown from 'react-markdown';
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import { toPng } from 'html-to-image';
 import { Document, Packer, Paragraph, TextRun, AlignmentType } from 'docx';
 import { saveAs } from 'file-saver';
 
@@ -30,6 +30,21 @@ export default function CoverLetterPreview() {
   const [currentUser, setCurrentUser] = useState<any>(user);
   const navigate = useNavigate();
   const letterRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (letterRef.current && letterRef.current.parentElement) {
+        const containerWidth = letterRef.current.parentElement.offsetWidth;
+        const scale = Math.min(1, (containerWidth - 40) / 794);
+        letterRef.current.style.transform = `scale(${scale})`;
+        letterRef.current.parentElement.style.height = `${1123 * scale + 40}px`;
+      }
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [letter, customization]);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -112,19 +127,46 @@ export default function CoverLetterPreview() {
     }
     setIsExporting(true);
     try {
-      const canvas = await html2canvas(letterRef.current, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff'
+      const element = letterRef.current;
+      
+      // Force natural size for capture
+      const originalStyle = element.style.transform;
+      element.style.transform = 'none';
+      
+      const dataUrl = await toPng(element, {
+        quality: 1,
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+        width: element.offsetWidth,
+        height: element.offsetHeight
       });
-      
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'pt', 'a4');
+
+      // Restore style
+      element.style.transform = originalStyle;
+
+      const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      const pdfHeight = pdf.internal.pageSize.getHeight();
       
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      const imgProps = pdf.getImageProperties(dataUrl);
+      const imgWidth = pdfWidth;
+      const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
+      
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      // First page
+      pdf.addImage(dataUrl, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pdfHeight;
+
+      // Additional pages if needed
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(dataUrl, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pdfHeight;
+      }
+
       pdf.save(`Lettre_Motivation_${letter.data.lastName}.pdf`);
     } catch (error) {
       console.error(error);
@@ -369,48 +411,55 @@ export default function CoverLetterPreview() {
             )}
           </AnimatePresence>
 
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={`flex-1 bg-white shadow-2xl rounded-sm p-12 md:p-20 min-h-[1000px] text-slate-800 transition-all duration-500 ${customization.font} ${customization.fontSize}`}
-            ref={letterRef}
-          >
-            {/* Layout Specific Headers */}
-            {customization.layout === 'modern' && (
-              <div className="mb-12 pb-8 border-b-4" style={{ borderColor: customization.accentColor }}>
-                <h1 className="text-4xl font-black uppercase tracking-tighter" style={{ color: customization.accentColor }}>
-                  {letter.data.firstName} {letter.data.lastName}
-                </h1>
-                <div className="flex flex-wrap gap-4 mt-4 text-sm font-bold text-slate-500">
-                  <span>{letter.data.email}</span>
-                  <span>•</span>
-                  <span>{letter.data.phone}</span>
+          <div className="flex-1 overflow-auto bg-slate-200 p-4 md:p-8 rounded-xl border border-slate-200 flex justify-center">
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`bg-white shadow-2xl rounded-sm p-12 md:p-20 transition-all duration-500 origin-top ${customization.font} ${customization.fontSize}`}
+              ref={letterRef}
+              style={{ 
+                width: '794px', 
+                minHeight: '1123px',
+                transform: 'scale(1)'
+              }}
+            >
+              {/* Layout Specific Headers */}
+              {customization.layout === 'modern' && (
+                <div className="mb-12 pb-8 border-b-4" style={{ borderColor: customization.accentColor }}>
+                  <h1 className="text-4xl font-black uppercase tracking-tighter" style={{ color: customization.accentColor }}>
+                    {letter.data.firstName} {letter.data.lastName}
+                  </h1>
+                  <div className="flex flex-wrap gap-4 mt-4 text-sm font-bold text-slate-500">
+                    <span>{letter.data.email}</span>
+                    <span>•</span>
+                    <span>{letter.data.phone}</span>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {customization.layout === 'minimal' && (
-              <div className="mb-16">
-                <div className="w-12 h-1 bg-slate-900 mb-6"></div>
-                <h1 className="text-3xl font-light tracking-tight">
-                  {letter.data.firstName} <span className="font-bold">{letter.data.lastName}</span>
-                </h1>
-              </div>
-            )}
+              {customization.layout === 'minimal' && (
+                <div className="mb-16">
+                  <div className="w-12 h-1 bg-slate-900 mb-6"></div>
+                  <h1 className="text-3xl font-light tracking-tight">
+                    {letter.data.firstName} <span className="font-bold">{letter.data.lastName}</span>
+                  </h1>
+                </div>
+              )}
 
-            {isEditing ? (
-              <textarea
-                value={editedContent}
-                onChange={(e) => setEditedContent(e.target.value)}
-                className="w-full h-[800px] p-4 border-2 border-primary/20 rounded-xl outline-none focus:border-primary transition-all text-lg leading-relaxed"
-                style={{ fontFamily: 'inherit' }}
-              />
-            ) : (
-              <div className="prose prose-slate max-w-none prose-headings:text-slate-900 prose-p:leading-relaxed">
-                <ReactMarkdown>{editedContent}</ReactMarkdown>
-              </div>
-            )}
-          </motion.div>
+              {isEditing ? (
+                <textarea
+                  value={editedContent}
+                  onChange={(e) => setEditedContent(e.target.value)}
+                  className="w-full h-[800px] p-4 border-2 border-primary/20 rounded-xl outline-none focus:border-primary transition-all text-lg leading-relaxed"
+                  style={{ fontFamily: 'inherit' }}
+                />
+              ) : (
+                <div className="prose prose-slate max-w-none prose-headings:text-slate-900 prose-p:leading-relaxed">
+                  <ReactMarkdown>{editedContent}</ReactMarkdown>
+                </div>
+              )}
+            </motion.div>
+          </div>
         </div>
       </div>
     </div>

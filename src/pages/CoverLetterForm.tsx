@@ -64,9 +64,13 @@ export default function CoverLetterForm() {
       const content = await generateCoverLetter(cvData, data);
       localStorage.setItem('currentLetter', JSON.stringify({ data, content }));
       navigate('/cover-letter-preview');
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert("Erreur lors de la génération de la lettre");
+      if (error.message === "Clé API manquante") {
+        alert("La clé API Gemini n'est pas configurée. Veuillez contacter l'administrateur.");
+      } else {
+        alert("Erreur lors de la génération de la lettre");
+      }
     } finally {
       setIsGenerating(false);
     }

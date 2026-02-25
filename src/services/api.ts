@@ -102,6 +102,22 @@ export const api = {
         }
       }
       return { ok: false, status: 401 };
+    },
+    updateProfile: async (profileData: any) => {
+      const user = JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_USER) || 'null');
+      if (!user) return { ok: false, status: 401 };
+      
+      const users = get(STORAGE_KEYS.USERS);
+      const index = users.findIndex((u: any) => u.id === user.id);
+      if (index > -1) {
+        users[index] = { ...users[index], ...profileData };
+        set(STORAGE_KEYS.USERS, users);
+        
+        const { password, ...safeUser } = users[index];
+        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(safeUser));
+        return { ok: true, json: async () => safeUser };
+      }
+      return { ok: false, status: 404 };
     }
   },
   cvs: {

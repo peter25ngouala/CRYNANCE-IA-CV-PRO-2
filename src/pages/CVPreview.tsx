@@ -25,6 +25,22 @@ export default function CVPreview() {
   const cvRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const handleResize = () => {
+      if (cvRef.current && cvRef.current.parentElement) {
+        const containerWidth = cvRef.current.parentElement.offsetWidth;
+        const scale = Math.min(1, (containerWidth - 40) / 794);
+        cvRef.current.style.transform = `scale(${scale})`;
+        // Adjust parent height to match scaled content
+        cvRef.current.parentElement.style.height = `${1123 * scale + 40}px`;
+      }
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [cvData]);
+
+  useEffect(() => {
     const fetchProfile = async () => {
       try {
         const res = await api.auth.getProfile();
@@ -168,20 +184,44 @@ export default function CVPreview() {
     try {
       const element = cvRef.current;
       
-      // Use html-to-image to capture the element as a PNG
-      // This handles modern CSS like oklch/oklab much better than html2canvas
+      // Force natural size for capture
+      const originalStyle = element.style.transform;
+      element.style.transform = 'none';
+      
       const dataUrl = await toPng(element, {
         quality: 1,
         pixelRatio: 2,
         backgroundColor: '#ffffff',
+        width: element.offsetWidth,
+        height: element.offsetHeight
       });
 
+      // Restore style
+      element.style.transform = originalStyle;
+
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgProps = pdf.getImageProperties(dataUrl);
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      const pdfHeight = pdf.internal.pageSize.getHeight();
       
-      pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      const imgProps = pdf.getImageProperties(dataUrl);
+      const imgWidth = pdfWidth;
+      const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
+      
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      // First page
+      pdf.addImage(dataUrl, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pdfHeight;
+
+      // Additional pages if needed
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(dataUrl, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pdfHeight;
+      }
+
       pdf.save(`${cvData?.firstName}_${cvData?.lastName}_CV.pdf`);
     } catch (error) {
       console.error(error);
@@ -441,15 +481,22 @@ export default function CVPreview() {
             </div>
 
             {/* CV Template Render */}
-            <div 
-              className="bg-white shadow-2xl rounded-sm overflow-hidden select-none" 
-              id="cv-render" 
-              ref={cvRef}
-              onContextMenu={(e) => e.preventDefault()}
-            >
-              {cvData.template === 'modern' && <ModernTemplate data={cvData} onUpdate={updateCV} />}
-              {cvData.template === 'classic' && <ClassicTemplate data={cvData} onUpdate={updateCV} />}
-              {cvData.template === 'creative' && <CreativeTemplate data={cvData} onUpdate={updateCV} />}
+            <div className="overflow-auto bg-slate-200 p-4 md:p-8 rounded-xl border border-slate-200 flex justify-center">
+              <div 
+                className="bg-white shadow-2xl origin-top transition-transform" 
+                id="cv-render" 
+                ref={cvRef}
+                style={{ 
+                  width: '794px', 
+                  minHeight: '1123px',
+                  transform: 'scale(1)', // Will be adjusted by CSS or JS if needed, but 794px is the base
+                }}
+                onContextMenu={(e) => e.preventDefault()}
+              >
+                {cvData.template === 'modern' && <ModernTemplate data={cvData} onUpdate={updateCV} />}
+                {cvData.template === 'classic' && <ClassicTemplate data={cvData} onUpdate={updateCV} />}
+                {cvData.template === 'creative' && <CreativeTemplate data={cvData} onUpdate={updateCV} />}
+              </div>
             </div>
           </div>
 
@@ -602,7 +649,7 @@ const Editable = ({ text, onSave, className, multiline = false }: { text: string
 };
 
 const ModernTemplate = ({ data, onUpdate }: { data: CVData, onUpdate: (d: Partial<CVData>) => void }) => (
-  <div className="flex min-h-[1120px] font-sans text-slate-800">
+  <div className="flex min-h-[1123px] w-[794px] font-sans text-slate-800 bg-white">
     {/* Sidebar */}
     <div className="w-1/3 bg-slate-900 text-white p-8">
       {data.photo && (
@@ -835,7 +882,7 @@ const ModernTemplate = ({ data, onUpdate }: { data: CVData, onUpdate: (d: Partia
 );
 
 const ClassicTemplate = ({ data, onUpdate }: { data: CVData, onUpdate: (d: Partial<CVData>) => void }) => (
-  <div className="min-h-[1120px] font-sans text-slate-900 bg-white flex relative overflow-hidden">
+  <div className="min-h-[1123px] w-[794px] font-sans text-slate-900 bg-white flex relative overflow-hidden">
     {/* Sidebar */}
     <div className="w-1/3 bg-slate-800 text-white p-8 flex flex-col">
        {/* Name & Job Title */}
@@ -1039,7 +1086,7 @@ const ClassicTemplate = ({ data, onUpdate }: { data: CVData, onUpdate: (d: Parti
 );
 
 const CreativeTemplate = ({ data, onUpdate }: { data: CVData, onUpdate: (d: Partial<CVData>) => void }) => (
-  <div className="min-h-[1120px] font-sans text-slate-800 bg-slate-50 relative overflow-hidden">
+  <div className="min-h-[1123px] w-[794px] font-sans text-slate-800 bg-slate-50 relative overflow-hidden">
     <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full -mr-32 -mt-32"></div>
     <div className="absolute bottom-0 left-0 w-96 h-96 bg-emerald-50 rounded-full -ml-48 -mb-48"></div>
 

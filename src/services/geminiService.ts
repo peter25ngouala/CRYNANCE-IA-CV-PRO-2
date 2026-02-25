@@ -1,9 +1,14 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { CVData, CVScore } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
+const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
 export const generateProfessionalCV = async (data: CVData): Promise<CVData> => {
+  if (!GEMINI_API_KEY) {
+    console.error("ERREUR: La clé API Gemini est manquante. Veuillez configurer GEMINI_API_KEY dans les variables d'environnement.");
+    throw new Error("Clé API manquante");
+  }
   const prompt = `Tu es un expert en recrutement international et rédacteur de CV professionnel. Ta mission est de compléter et d'optimiser ce CV pour le rendre extrêmement compétitif, attrayant et compatible avec les systèmes ATS.
 
   RÈGLES STRICTES : 
@@ -19,92 +24,127 @@ export const generateProfessionalCV = async (data: CVData): Promise<CVData> => {
   
   Données actuelles de l'utilisateur (à compléter et enrichir) : ${JSON.stringify(data)}`;
 
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: prompt,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          profile: { type: Type.STRING },
-          skills: { type: Type.ARRAY, items: { type: Type.STRING } },
-          itSkills: { type: Type.ARRAY, items: { type: Type.STRING } },
-          experiences: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                company: { type: Type.STRING },
-                position: { type: Type.STRING },
-                startDate: { type: Type.STRING },
-                endDate: { type: Type.STRING },
-                description: { type: Type.STRING },
-              },
-              required: ["company", "position", "startDate", "endDate", "description"]
-            }
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            profile: { type: Type.STRING },
+            skills: { type: Type.ARRAY, items: { type: Type.STRING } },
+            itSkills: { type: Type.ARRAY, items: { type: Type.STRING } },
+            experiences: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  company: { type: Type.STRING },
+                  position: { type: Type.STRING },
+                  startDate: { type: Type.STRING },
+                  endDate: { type: Type.STRING },
+                  description: { type: Type.STRING },
+                },
+                required: ["company", "position", "startDate", "endDate", "description"]
+              }
+            },
+            education: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  school: { type: Type.STRING },
+                  degree: { type: Type.STRING },
+                  year: { type: Type.STRING },
+                },
+                required: ["school", "degree", "year"]
+              }
+            },
+            qualities: { type: Type.ARRAY, items: { type: Type.STRING } },
+            flaws: { type: Type.ARRAY, items: { type: Type.STRING } },
+            interests: { type: Type.ARRAY, items: { type: Type.STRING } },
           },
-          education: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                school: { type: Type.STRING },
-                degree: { type: Type.STRING },
-                year: { type: Type.STRING },
-              },
-              required: ["school", "degree", "year"]
-            }
-          },
-          qualities: { type: Type.ARRAY, items: { type: Type.STRING } },
-          flaws: { type: Type.ARRAY, items: { type: Type.STRING } },
-          interests: { type: Type.ARRAY, items: { type: Type.STRING } },
-        },
-        required: ["profile", "skills", "itSkills", "experiences", "education", "qualities", "flaws", "interests"]
+          required: ["profile", "skills", "itSkills", "experiences", "education", "qualities", "flaws", "interests"]
+        }
       }
-    }
-  });
+    });
 
-  const generated = JSON.parse(response.text);
-  return { ...data, ...generated };
+    const generated = JSON.parse(response.text || "{}");
+    return { ...data, ...generated };
+  } catch (error) {
+    console.error("Gemini CV Generation Error:", error);
+    throw error;
+  }
 };
 
 export const scoreCV = async (data: CVData): Promise<CVScore> => {
+  if (!GEMINI_API_KEY) {
+    console.error("ERREUR: La clé API Gemini est manquante.");
+    throw new Error("Clé API manquante");
+  }
   const prompt = `Analyse ce CV et donne un score sur 100, ainsi que les points forts, points faibles et conseils d'amélioration.
   CV: ${JSON.stringify(data)}`;
 
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: prompt,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          score: { type: Type.INTEGER },
-          strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
-          weaknesses: { type: Type.ARRAY, items: { type: Type.STRING } },
-          advice: { type: Type.ARRAY, items: { type: Type.STRING } },
-        },
-        required: ["score", "strengths", "weaknesses", "advice"]
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            score: { type: Type.INTEGER },
+            strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
+            weaknesses: { type: Type.ARRAY, items: { type: Type.STRING } },
+            advice: { type: Type.ARRAY, items: { type: Type.STRING } },
+          },
+          required: ["score", "strengths", "weaknesses", "advice"]
+        }
       }
-    }
-  });
+    });
 
-  return JSON.parse(response.text);
+    return JSON.parse(response.text || "{}");
+  } catch (error) {
+    console.error("Gemini CV Scoring Error:", error);
+    throw error;
+  }
 };
 
 export const generateCoverLetter = async (cvData: CVData, letterData: any): Promise<string> => {
-  const prompt = `Rédige une lettre de motivation professionnelle et percutante.
-  Utilise les informations du CV: ${JSON.stringify(cvData)}
-  Et les informations spécifiques à la lettre: ${JSON.stringify(letterData)}
-  Structure: En-tête, Objet, Introduction, Présentation, Motivation, Conclusion.
-  Corrige l'orthographe et la grammaire.`;
+  if (!GEMINI_API_KEY) {
+    console.error("ERREUR: La clé API Gemini est manquante.");
+    throw new Error("Clé API manquante");
+  }
+  const prompt = `Tu es un expert en recrutement. Rédige une lettre de motivation professionnelle, percutante et personnalisée.
+  
+  CONTEXTE :
+  - Candidat : ${cvData.firstName} ${cvData.lastName}
+  - Poste visé : ${letterData.targetJob}
+  - Entreprise : ${letterData.company}
+  - Type de contrat : ${letterData.contractType}
+  - Motivations spécifiques : ${letterData.motivation || 'Non spécifié'}
+  - Profil du candidat : ${cvData.profile}
+  - Expériences clés : ${JSON.stringify(cvData.experiences.slice(0, 2))}
+  
+  CONSIGNES :
+  1. Utilise un ton professionnel, enthousiaste et convaincant.
+  2. Structure la lettre : En-tête, Objet, Introduction (pourquoi j'écris), Présentation (qui je suis), Motivation (pourquoi vous), Conclusion (appel à l'action).
+  3. Fais le lien entre les compétences du candidat et les besoins de l'entreprise.
+  4. La lettre doit être prête à l'emploi, sans [TEXTE À REMPLIR] si possible, sauf pour la date.
+  5. Langue: ${cvData.language === 'fr' ? 'Français' : 'Anglais'}.`;
 
-  const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
-    contents: prompt,
-  });
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+    });
 
-  return response.text || "";
+    return response.text || "";
+  } catch (error) {
+    console.error("Gemini Cover Letter Error:", error);
+    throw error;
+  }
 };

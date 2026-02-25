@@ -111,17 +111,15 @@ export default function Dashboard() {
     e.preventDefault();
     setIsSavingProfile(true);
     try {
-      const users = JSON.parse(localStorage.getItem('cv_app_users') || '[]');
-      const user = JSON.parse(localStorage.getItem('user') || 'null');
-      const index = users.findIndex((u: any) => u.id === user.id);
-      if (index > -1) {
-        users[index] = { ...users[index], ...profileData };
-        localStorage.setItem('cv_app_users', JSON.stringify(users));
-        localStorage.setItem('user', JSON.stringify(users[index]));
+      const res = await api.auth.updateProfile(profileData);
+      if (res.ok) {
         alert("Profil mis à jour !");
+      } else {
+        alert("Erreur lors de la mise à jour du profil.");
       }
     } catch (error) {
       console.error(error);
+      alert("Une erreur est survenue.");
     } finally {
       setIsSavingProfile(false);
     }

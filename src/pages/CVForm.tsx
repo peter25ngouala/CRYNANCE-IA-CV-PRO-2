@@ -129,9 +129,13 @@ export default function CVForm() {
       
       localStorage.setItem('currentCV', JSON.stringify(finalData));
       navigate('/cv-preview');
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert("Erreur lors de la génération du CV. Veuillez réessayer.");
+      if (error.message === "Clé API manquante") {
+        alert("La clé API Gemini n'est pas configurée. Veuillez contacter l'administrateur.");
+      } else {
+        alert("Erreur lors de la génération du CV. Veuillez réessayer.");
+      }
     } finally {
       setIsGenerating(false);
     }

@@ -131,13 +131,24 @@ export const api = {
       const cvs = get(STORAGE_KEYS.CVS);
       const index = cvs.findIndex((cv: any) => cv.id === cvData.id);
       
-      const newCv = { ...cvData, userId: user?.id, updatedAt: new Date().toISOString() };
+      // Strip photo to save space as requested by user
+      const { photo, ...textData } = cvData;
+      
+      const newCv = { ...textData, userId: user?.id, updatedAt: new Date().toISOString() };
       if (index > -1) {
         cvs[index] = newCv;
       } else {
         cvs.push({ ...newCv, id: cvData.id || Date.now().toString() });
       }
-      set(STORAGE_KEYS.CVS, cvs);
+      
+      try {
+        set(STORAGE_KEYS.CVS, cvs);
+      } catch (e) {
+        console.error("Failed to save CVs to localStorage quota exceeded", e);
+        // If it fails, try to remove older CVs or just show error
+        alert("Erreur : Espace de stockage plein. Veuillez supprimer d'anciens CV.");
+        return { ok: false, status: 507 };
+      }
       return { ok: true, json: async () => ({ success: true }) };
     },
     delete: async (id: string) => {

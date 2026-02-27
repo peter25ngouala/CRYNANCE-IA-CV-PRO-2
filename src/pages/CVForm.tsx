@@ -7,6 +7,7 @@ import { CVData } from '../types';
 import { generateProfessionalCV } from '../services/geminiService';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
+import { storage } from '../utils/storage';
 
 export default function CVForm() {
   const [step, setStep] = useState(1);
@@ -35,9 +36,8 @@ export default function CVForm() {
   });
 
   React.useEffect(() => {
-    const saved = localStorage.getItem('currentCV');
-    if (saved) {
-      const parsed = JSON.parse(saved);
+    const parsed = storage.loadCV();
+    if (parsed) {
       reset(parsed);
       if (parsed.photo) setPhotoPreview(parsed.photo);
     }
@@ -58,7 +58,7 @@ export default function CVForm() {
       if (Object.keys(formData).length > 0) {
         setIsAutoSaving(true);
         const cvToSave = { ...formData, photo: photoPreview };
-        localStorage.setItem('currentCV', JSON.stringify(cvToSave));
+        storage.saveCV(cvToSave);
         
         // Permanent save if logged in
         const user = JSON.parse(localStorage.getItem('user') || 'null');
@@ -127,7 +127,7 @@ export default function CVForm() {
         }];
       }
       
-      localStorage.setItem('currentCV', JSON.stringify(finalData));
+      storage.saveCV(finalData);
       navigate('/cv-preview');
     } catch (error: any) {
       console.error("CV Generation Error:", error);

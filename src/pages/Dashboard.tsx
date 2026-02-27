@@ -7,6 +7,7 @@ import {
   Mail, Phone, Save, Clock, HelpCircle, ArrowRight 
 } from 'lucide-react';
 import { api } from '../services/api';
+import { storage } from '../utils/storage';
 
 const CountdownTimer = ({ expiryDate, onExpire }: { expiryDate: string, onExpire: () => void }) => {
   const [timeLeft, setTimeLeft] = useState<string>('');
@@ -146,7 +147,7 @@ export default function Dashboard() {
   };
 
   const editCv = (cv: any) => {
-    localStorage.setItem('currentCV', JSON.stringify(cv.data));
+    storage.saveCV(cv.data);
     navigate('/create-cv');
   };
 
@@ -298,7 +299,7 @@ export default function Dashboard() {
                         <p className="text-sm text-slate-500 mb-4">Modifié le {new Date(cv.createdAt).toLocaleDateString()}</p>
                         <button 
                           onClick={() => {
-                            localStorage.setItem('currentCV', JSON.stringify(cv.data));
+                            storage.saveCV(cv.data);
                             navigate('/cv-preview');
                           }}
                           className="w-full py-2 bg-slate-50 text-slate-700 rounded-xl text-sm font-bold hover:bg-primary hover:text-white transition-all flex items-center justify-center space-x-2"
@@ -349,8 +350,8 @@ export default function Dashboard() {
                         <p className="text-sm text-slate-500 mb-4">Modifiée le {new Date(letter.createdAt).toLocaleDateString()}</p>
                         <button 
                           onClick={() => {
-                            localStorage.setItem('currentCoverLetter', letter.content);
-                            localStorage.setItem('currentCoverLetterData', JSON.stringify(letter.data));
+                            storage.saveLetterContent({ id: letter.id, data: letter.data, content: letter.content });
+                            storage.saveLetterData(letter.data);
                             navigate('/cover-letter-preview');
                           }}
                           className="w-full py-2 bg-slate-50 text-slate-700 rounded-xl text-sm font-bold hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center space-x-2"

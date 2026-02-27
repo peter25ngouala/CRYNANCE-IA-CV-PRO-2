@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Download, FileDown, FileText, ChevronLeft, Loader2, Sparkles, CheckCircle2, Save, Edit3, Zap, Palette, Type, Layout, Settings2 } from 'lucide-react';
 import { api } from '../services/api';
+import { storage } from '../utils/storage';
 import ReactMarkdown from 'react-markdown';
 import jsPDF from 'jspdf';
 import { toPng } from 'html-to-image';
@@ -80,9 +81,8 @@ export default function CoverLetterPreview() {
   const isSubscribed = () => getSubscriptionStatus().active;
 
   useEffect(() => {
-    const data = localStorage.getItem('currentLetter');
-    if (data) {
-      const parsed = JSON.parse(data);
+    const parsed = storage.loadLetterContent();
+    if (parsed) {
       setLetter(parsed);
       setEditedContent(parsed.content);
     } else {
@@ -108,8 +108,9 @@ export default function CoverLetterPreview() {
         content: editedContent
       });
       if (response.ok) {
-        setLetter({ ...letter, id: letterId, content: editedContent });
-        localStorage.setItem('currentLetter', JSON.stringify({ ...letter, id: letterId, content: editedContent }));
+        const updatedLetter = { ...letter, id: letterId, content: editedContent };
+        setLetter(updatedLetter);
+        storage.saveLetterContent(updatedLetter);
         alert("Lettre sauvegardée avec succès !");
       }
     } catch (error) {

@@ -5,6 +5,7 @@ import { Download, FileText, FileDown, CheckCircle2, AlertCircle, Sparkles, Load
 import { api } from '../services/api';
 import { CVData, CVScore } from '../types';
 import { scoreCV, generateProfessionalCV } from '../services/geminiService';
+import { storage } from '../utils/storage';
 import jsPDF from 'jspdf';
 import { toPng } from 'html-to-image';
 // @ts-ignore
@@ -73,10 +74,8 @@ export default function CVPreview() {
   const isSubscribed = (template: string) => getSubscriptionStatus(template).active;
 
   useEffect(() => {
-    const data = localStorage.getItem('currentCV');
-    if (data) {
-      const parsed: CVData = JSON.parse(data);
-      
+    const parsed = storage.loadCV();
+    if (parsed) {
       // Initialize sections if missing
       if (!parsed.sections) {
         parsed.sections = {
@@ -125,7 +124,7 @@ export default function CVPreview() {
         improved.sections = dataToUse.sections;
       }
       setCvData(improved);
-      localStorage.setItem('currentCV', JSON.stringify(improved));
+      storage.saveCV(improved);
       handleScore(improved);
     } catch (error: any) {
       console.error("AI Optimization Error:", error);
@@ -144,7 +143,7 @@ export default function CVPreview() {
     if (!cvData) return;
     const updated = { ...cvData, ...newData };
     setCvData(updated);
-    localStorage.setItem('currentCV', JSON.stringify(updated));
+    storage.saveCV(updated);
   };
 
   const handleSave = async () => {
@@ -166,7 +165,7 @@ export default function CVPreview() {
         if (cvData) {
           const updated = { ...cvData, id: cvId };
           setCvData(updated);
-          localStorage.setItem('currentCV', JSON.stringify(updated));
+          storage.saveCV(updated);
         }
         alert("CV sauvegardé avec succès !");
       }

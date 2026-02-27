@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { generateCoverLetter } from '../services/geminiService';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
+import { storage } from '../utils/storage';
 import { CoverLetterData } from '../types';
 
 export default function CoverLetterForm() {
@@ -29,9 +30,9 @@ export default function CoverLetterForm() {
   const formData = watch();
 
   useEffect(() => {
-    const saved = localStorage.getItem('currentLetterData');
+    const saved = storage.loadLetterData();
     if (saved) {
-      reset(JSON.parse(saved));
+      reset(saved);
     }
   }, [reset]);
 
@@ -39,7 +40,7 @@ export default function CoverLetterForm() {
     const timer = setTimeout(async () => {
       if (Object.keys(formData).length > 0) {
         setIsAutoSaving(true);
-        localStorage.setItem('currentLetterData', JSON.stringify(formData));
+        storage.saveLetterData(formData);
         
         // Permanent save if logged in
         const user = JSON.parse(localStorage.getItem('user') || 'null');
@@ -47,7 +48,7 @@ export default function CoverLetterForm() {
           await api.letters.save({
             id: localStorage.getItem('currentLetterId') || Date.now().toString(),
             data: formData,
-            content: localStorage.getItem('currentLetter') || ''
+            content: storage.loadLetterContent() || ''
           });
         }
         
@@ -60,9 +61,9 @@ export default function CoverLetterForm() {
   const onSubmit = async (data: CoverLetterData) => {
     setIsGenerating(true);
     try {
-      const cvData = JSON.parse(localStorage.getItem('currentCV') || '{}');
+      const cvData = storage.loadCV() || {};
       const content = await generateCoverLetter(cvData, data);
-      localStorage.setItem('currentLetter', JSON.stringify({ data, content }));
+      storage.saveLetterContent({ data, content });
       navigate('/cover-letter-preview');
     } catch (error: any) {
       console.error("Cover Letter Error:", error);

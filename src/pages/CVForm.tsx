@@ -8,13 +8,14 @@ import { generateProfessionalCV } from '../services/geminiService';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
 import { storage } from '../utils/storage';
+import { useAuth } from '../context/AuthContext';
 
 export default function CVForm() {
   const [step, setStep] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isAutoSaving, setIsAutoSaving] = useState(false);
   const navigate = useNavigate();
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const { user, refreshProfile } = useAuth();
 
   const { register, control, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<CVData>({
     defaultValues: {
@@ -30,6 +31,7 @@ export default function CVForm() {
       qualities: [''],
       flaws: [''],
       interests: [''],
+      languagesList: [{ name: '', level: '' }],
       language: 'fr',
       template: 'modern',
       jobTitle: ''
@@ -51,9 +53,12 @@ export default function CVForm() {
   const { fields: qualityFields, append: appendQuality, remove: removeQuality } = useFieldArray({ control, name: "qualities" as any });
   const { fields: flawFields, append: appendFlaw, remove: removeFlaw } = useFieldArray({ control, name: "flaws" as any });
   const { fields: interestFields, append: appendInterest, remove: removeInterest } = useFieldArray({ control, name: "interests" as any });
+  const { fields: langFields, append: appendLang, remove: removeLang } = useFieldArray({ control, name: "languagesList" as any });
 
   const formData = watch();
 
+  // Removed auto-save logic as requested. Saving is now manual at the end of the process.
+  /*
   useEffect(() => {
     const timer = setTimeout(async () => {
       if (Object.keys(formData).length > 0) {
@@ -75,53 +80,79 @@ export default function CVForm() {
     }, 2000);
     return () => clearTimeout(timer);
   }, [formData, photoPreview]);
+  */
+
+  useEffect(() => {
+    if (Object.keys(errors).length > 0) {
+      console.log("Current form errors:", errors);
+    }
+  }, [errors]);
 
   const onSubmit = async (data: CVData) => {
+    console.log(">>> onSubmit CALLED with data:", data);
+    if (!user) {
+      console.warn("User not logged in");
+      alert("Veuillez vous connecter pour générer un CV avec l'IA.");
+      navigate('/login');
+      return;
+    }
+
     setIsGenerating(true);
     try {
+      console.log(">>> Consuming credit for user:", user.id);
+      // Check and consume generation credit
+      const consumeRes = await api.ia.consume('cv');
+      console.log(">>> Consume response status:", consumeRes.status);
+      
+      if (!consumeRes.ok) {
+        let errorMsg = "Vous n'avez plus de crédits de génération. Veuillez renouveler votre abonnement.";
+        const text = await consumeRes.text();
+        console.error(">>> Consume failed. Response text:", text);
+        try {
+          const errorData = JSON.parse(text);
+          errorMsg = errorData.error || errorMsg;
+        } catch (e) {
+          if (text.includes("<html>")) {
+            errorMsg = "Erreur serveur (HTML reçu). Veuillez contacter le support.";
+          }
+        }
+        alert(errorMsg);
+        navigate('/premium');
+        return;
+      }
+
+      // Refresh profile to update remaining credits in context
+      refreshProfile();
+
+      console.log(">>> Calling Gemini AI service...");
       // Step 1: Generation with IA
       const enhancedData = await generateProfessionalCV({ ...data, photo: photoPreview || undefined });
+      console.log(">>> AI Generation successful!");
       
       // Step 2: Automatic Verification & Correction
-      // Ensure minimum requirements are met
       let finalData = { ...enhancedData };
       
-      // Initialize sections if missing
       if (!finalData.sections) {
         finalData.sections = {
-          contact: finalData.language === 'fr' ? 'Contact' : 'Contact',
-          email: 'Email',
-          phone: finalData.language === 'fr' ? 'Téléphone' : 'Phone',
-          address: finalData.language === 'fr' ? 'Adresse' : 'Address',
-          skills: finalData.language === 'fr' ? 'Compétences' : 'Skills',
-          itSkills: finalData.language === 'fr' ? 'Informatique' : 'IT Skills',
-          experiences: finalData.language === 'fr' ? 'Expériences' : 'Experience',
-          education: finalData.language === 'fr' ? 'Formation' : 'Education',
-          qualities: finalData.language === 'fr' ? 'Qualités' : 'Qualities',
-          flaws: finalData.language === 'fr' ? 'Défauts' : 'Flaws',
-          interests: finalData.language === 'fr' ? 'Centres d\'intérêt' : 'Interests',
-          profile: finalData.language === 'fr' ? 'Profil' : 'Profile',
-          divers: finalData.language === 'fr' ? 'Divers' : 'Miscellaneous',
-          references: finalData.language === 'fr' ? 'Références' : 'References',
-          languages: finalData.language === 'fr' ? 'Langues' : 'Languages'
+          contact: 'Contact', email: 'Email', phone: 'Téléphone', address: 'Adresse',
+          skills: 'Compétences', itSkills: 'Informatique', experiences: 'Expériences',
+          education: 'Formation', qualities: 'Qualités', flaws: 'Défauts',
+          interests: 'Centres d\'intérêt', profile: 'Profil', divers: 'Divers', languages: 'Langues'
         };
       }
 
-      // Verification of content density
       const isTooEmpty = !finalData.profile || 
-                         finalData.skills.length < 5 || 
-                         finalData.experiences.length < 2 || 
-                         finalData.education.length < 1;
+                         (finalData.skills?.length || 0) < 3 || 
+                         (finalData.experiences?.length || 0) < 1;
 
       if (isTooEmpty) {
-        // Retry once with even stricter instructions if content is still too sparse
+        console.log(">>> Content too sparse, retrying once...");
         finalData = await generateProfessionalCV(finalData);
       }
 
       // Step 3: Final Sanity Check
-      // If still empty (unlikely with Gemini), we manually inject placeholders to avoid empty templates
-      if (finalData.skills.length === 0) finalData.skills = ['Communication', 'Travail d\'équipe', 'Résolution de problèmes', 'Adaptabilité', 'Organisation'];
-      if (finalData.experiences.length === 0) {
+      if (!finalData.skills || finalData.skills.length === 0) finalData.skills = ['Communication', 'Travail d\'équipe', 'Résolution de problèmes'];
+      if (!finalData.experiences || finalData.experiences.length === 0) {
         finalData.experiences = [{
           company: 'Entreprise Exemple',
           position: finalData.jobTitle || 'Poste Professionnel',
@@ -131,33 +162,24 @@ export default function CVForm() {
         }];
       }
       
-      // Remove old CV before saving new one as requested
       localStorage.removeItem('currentCV');
       localStorage.removeItem('currentCV_photo');
       
       storage.saveCV(finalData);
+      console.log(">>> CV saved. Navigating to preview...");
       navigate('/cv-preview');
     } catch (error: any) {
-      console.error("CV Generation Error:", error);
-      let errorMessage = error.message || "";
+      console.error(">>> CV Generation Error:", error);
+      let errorMessage = error.message || "Erreur inconnue";
       
-      // Si l'erreur est un objet JSON (réponse de l'API Google)
       try {
         if (errorMessage.startsWith('{')) {
           const errorObj = JSON.parse(errorMessage);
           errorMessage = errorObj.error?.message || errorMessage;
         }
-      } catch (e) {
-        // Pas un JSON valide, on garde le message original
-      }
+      } catch (e) {}
       
-      if (errorMessage.includes("API Key not found") || errorMessage.includes("API_KEY_INVALID")) {
-        alert("⚠️ Erreur de Clé API : Google ne reconnaît pas votre clé. \n\nConseils :\n1. Vérifiez que la clé commence par 'AIza'.\n2. Essayez de nommer la variable 'VITE_GEMINI_API_KEY' dans Netlify au lieu de 'GEMINI_API_KEY'.\n3. Redéployez le site après modification.");
-      } else if (errorMessage.includes("403") || errorMessage.includes("permission")) {
-        alert("🚫 Erreur de permission : Votre clé n'a pas accès à ce service ou votre région est bloquée.");
-      } else {
-        alert(`❌ Erreur lors de la génération : ${errorMessage || "Veuillez réessayer."}`);
-      }
+      alert(`❌ Erreur lors de la génération : ${errorMessage}`);
     } finally {
       setIsGenerating(false);
     }
@@ -168,7 +190,38 @@ export default function CVForm() {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setPhotoPreview(reader.result as string);
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 400;
+          const MAX_HEIGHT = 400;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+            setPhotoPreview(dataUrl);
+          } else {
+            setPhotoPreview(reader.result as string);
+          }
+        };
+        img.src = reader.result as string;
       };
       reader.readAsDataURL(file);
     }
@@ -191,30 +244,20 @@ export default function CVForm() {
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-black text-slate-900">Créer mon <span className="text-primary">CV</span></h1>
-          {isAutoSaving && (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex items-center space-x-1 text-emerald-500 text-xs font-bold bg-emerald-50 px-2 py-1 rounded-lg"
-            >
-              <CheckCircle2 size={12} />
-              <span>CV sauvegardé</span>
-            </motion.div>
-          )}
         </div>
         {/* Progress Bar */}
-        <div className="mb-12">
-          <div className="flex justify-between mb-4">
+        <div className="mb-8 md:mb-12">
+          <div className="flex justify-between mb-4 overflow-x-auto pb-2 no-scrollbar">
             {steps.map((s) => (
-              <div key={s.id} className="flex flex-col items-center">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all ${step >= s.id ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-slate-200 text-slate-500'}`}>
+              <div key={s.id} className="flex flex-col items-center min-w-[60px] md:min-w-[80px]">
+                <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-xs md:text-sm font-bold transition-all ${step >= s.id ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-slate-200 text-slate-500'}`}>
                   {s.id}
                 </div>
-                <span className={`text-[10px] mt-2 font-medium uppercase tracking-wider ${step >= s.id ? 'text-primary' : 'text-slate-400'}`}>{s.title}</span>
+                <span className={`text-[8px] md:text-[10px] mt-2 font-medium uppercase tracking-wider text-center ${step >= s.id ? 'text-primary' : 'text-slate-400'}`}>{s.title}</span>
               </div>
             ))}
           </div>
-          <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+          <div className="h-1.5 md:h-2 bg-slate-100 rounded-full overflow-hidden">
             <motion.div 
               className="h-full bg-primary"
               initial={{ width: 0 }}
@@ -223,7 +266,7 @@ export default function CVForm() {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-[2rem] shadow-xl border border-slate-100 p-8 md:p-12">
+        <form onSubmit={handleSubmit(onSubmit)} className="bg-white rounded-[1.5rem] md:rounded-[2rem] shadow-xl border border-slate-100 p-6 md:p-12">
           <AnimatePresence mode="wait">
             {step === 1 && (
               <motion.div
@@ -462,6 +505,37 @@ export default function CVForm() {
                     ))}
                   </div>
                 </div>
+
+                <div className="space-y-4 pt-4 border-t border-slate-100">
+                  <div className="flex justify-between items-center">
+                    <label className="text-sm font-semibold text-slate-700">Langues parlées</label>
+                    <button type="button" onClick={() => appendLang({ name: '', level: '' })} className="text-primary text-sm font-bold flex items-center space-x-1">
+                      <Plus size={16} /> <span>Ajouter une langue</span>
+                    </button>
+                  </div>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {langFields.map((field, index) => (
+                      <div key={field.id} className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3 relative">
+                        <button type="button" onClick={() => removeLang(index)} className="absolute top-2 right-2 text-slate-400 hover:text-red-500"><Trash2 size={16} /></button>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase">Langue</label>
+                          <input {...register(`languagesList.${index}.name` as any)} placeholder="Ex: Français" className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase">Niveau</label>
+                          <select {...register(`languagesList.${index}.level` as any)} className="w-full px-3 py-2 rounded-lg border border-slate-200 outline-none bg-white">
+                            <option value="">Sélectionner un niveau</option>
+                            <option value="Langue maternelle">Langue maternelle</option>
+                            <option value="Courant">Courant</option>
+                            <option value="Avancé">Avancé</option>
+                            <option value="Intermédiaire">Intermédiaire</option>
+                            <option value="Débutant">Débutant</option>
+                          </select>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </motion.div>
             )}
 
@@ -473,27 +547,13 @@ export default function CVForm() {
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-8"
               >
-                <div className="grid md:grid-cols-2 gap-8">
-                  <div className="space-y-4">
-                    <label className="text-sm font-semibold text-slate-700">Langue du CV</label>
-                    <div className="flex space-x-4">
-                      {['fr', 'en'].map((lang) => (
-                        <button
-                          key={lang}
-                          type="button"
-                          onClick={() => setValue('language', lang as 'fr' | 'en')}
-                          className={`flex-1 py-3 rounded-xl border font-bold transition-all ${watch('language') === lang ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-primary'}`}
-                        >
-                          {lang === 'fr' ? 'Français' : 'Anglais'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
+                <div className="grid md:grid-cols-1 gap-8">
                   <div className="space-y-4">
                     <label className="text-sm font-semibold text-slate-700">Template</label>
                     <select {...register("template")} className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:border-primary">
-                      <option value="modern">Moderne (Épuré & Pro)</option>
+                      <option value="modern">Moderne (Élégant)</option>
+                      <option value="blue">Moderne (Pro Bleu)</option>
+                      <option value="dark-minimal">Moderne (Épuré)</option>
                       <option value="classic">Classique (Traditionnel)</option>
                       <option value="creative">Créatif (Original)</option>
                     </select>
@@ -515,35 +575,52 @@ export default function CVForm() {
             )}
           </AnimatePresence>
 
-          <div className="mt-12 flex justify-between">
-            {step > 1 ? (
-              <button type="button" onClick={prevStep} className="flex items-center space-x-2 text-slate-600 font-bold hover:text-primary transition-colors">
-                <ChevronLeft size={20} /> <span>Précédent</span>
-              </button>
-            ) : <div />}
-
-            {step < 6 ? (
-              <button type="button" onClick={nextStep} className="bg-primary text-white px-8 py-3 rounded-xl font-bold flex items-center space-x-2 hover:bg-primary-dark transition-all shadow-lg shadow-primary/20">
-                <span>Suivant</span> <ChevronRight size={20} />
-              </button>
-            ) : (
-              <button type="submit" disabled={isGenerating} className="bg-emerald-500 text-white px-10 py-3 rounded-xl font-bold flex items-center space-x-2 hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50">
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="animate-spin" size={20} />
-                    <div className="flex flex-col items-start">
-                      <span className="text-sm">Génération & Vérification...</span>
-                      <span className="text-[10px] opacity-70 font-normal">Test des exports PDF/Word inclus</span>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles size={20} />
-                    <span>Générer mon CV</span>
-                  </>
-                )}
-              </button>
+          <div className="mt-12 flex flex-col space-y-4">
+            {Object.keys(errors).length > 0 && (
+              <div className="p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm font-medium">
+                ⚠️ Veuillez remplir tous les champs obligatoires (Prénom, Nom, Poste visé, Email, Téléphone) dans les étapes précédentes.
+              </div>
             )}
+            
+            <div className="flex justify-between">
+              {step > 1 ? (
+                <button type="button" onClick={prevStep} className="flex items-center space-x-2 text-slate-600 font-bold hover:text-primary transition-colors">
+                  <ChevronLeft size={20} /> <span>Précédent</span>
+                </button>
+              ) : <div />}
+
+              {step < 6 ? (
+                <button type="button" onClick={nextStep} className="bg-primary text-white px-8 py-3 rounded-xl font-bold flex items-center space-x-2 hover:bg-primary-dark transition-all shadow-lg shadow-primary/20">
+                  <span>Suivant</span> <ChevronRight size={20} />
+                </button>
+              ) : (
+                <button 
+                  type="submit" 
+                  disabled={isGenerating} 
+                  className="bg-emerald-500 text-white px-10 py-3 rounded-xl font-bold flex items-center space-x-2 hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                  onClick={() => {
+                    if (Object.keys(errors).length > 0) {
+                      console.log("Validation errors:", errors);
+                    }
+                  }}
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="animate-spin" size={20} />
+                      <div className="flex flex-col items-start">
+                        <span className="text-sm">Génération du CV en cours...</span>
+                        <span className="text-[10px] opacity-70 font-normal">Vérification et optimisation IA</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={20} />
+                      <span>Générer mon CV avec l'IA</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
         </form>
       </div>

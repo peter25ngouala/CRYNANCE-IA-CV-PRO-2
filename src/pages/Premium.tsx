@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Check, Zap, CreditCard, ShieldCheck, Sparkles, Loader2, AlertCircle } from 'lucide-react';
+import { Check, Zap, CreditCard, ShieldCheck, Sparkles, Loader2, AlertCircle, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 export default function Premium() {
   const [promoCode, setPromoCode] = useState('');
@@ -12,35 +13,35 @@ export default function Premium() {
   const [success, setSuccess] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem('user') || 'null');
+  const { user } = useAuth();
 
   const plans = [
     {
-      id: 'modern',
-      name: 'CV Modern',
-      price: 499,
-      icon: <Sparkles className="text-blue-500" size={32} />,
-      color: 'from-blue-500 to-indigo-600',
-      waveLink: 'https://pay.wave.com/m/M_sn_wXlszdyVZOIV/c/sn/?amount=499',
-      features: ['Template Modern débloqué', 'Export PDF illimité', 'Optimisation IA', 'Accès à vie']
-    },
-    {
       id: 'classic',
       name: 'CV Classic',
-      price: 799,
-      icon: <Zap className="text-amber-500" size={32} />,
-      color: 'from-amber-500 to-orange-600',
-      waveLink: 'https://pay.wave.com/m/M_sn_wXlszdyVZOIV/c/sn/?amount=799',
-      features: ['Template Classic débloqué', 'Export PDF illimité', 'Optimisation IA', 'Accès à vie']
+      price: 499,
+      icon: <FileText className="text-slate-500" size={32} />,
+      color: 'from-slate-400 to-slate-600',
+      waveLink: 'https://pay.wave.com/m/M_sn_wXlszdyVZOIV/c/sn/?amount=499',
+      features: ['Templates Classiques débloqués', 'Export PDF illimité', 'Optimisation IA', 'Accès à vie']
     },
     {
       id: 'creative',
       name: 'CV Creative',
-      price: 1000,
-      icon: <Zap className="text-purple-500" size={32} />,
+      price: 799,
+      icon: <Sparkles className="text-purple-500" size={32} />,
       color: 'from-purple-500 to-pink-600',
+      waveLink: 'https://pay.wave.com/m/M_sn_wXlszdyVZOIV/c/sn/?amount=799',
+      features: ['Templates Créatifs débloqués', 'Export PDF illimité', 'Optimisation IA', 'Accès à vie']
+    },
+    {
+      id: 'modern',
+      name: 'CV Modern (Full Access)',
+      price: 1000,
+      icon: <Zap className="text-amber-500" size={32} />,
+      color: 'from-amber-500 to-orange-600',
       waveLink: 'https://pay.wave.com/m/M_sn_wXlszdyVZOIV/c/sn/?amount=1000',
-      features: ['Template Creative débloqué', 'Export PDF & Word', 'Optimisation IA', 'Accès à vie']
+      features: ['TOUS les templates débloqués', 'Modern, Classic & Creative', 'Export PDF & Word', 'Accès Prioritaire']
     }
   ];
 

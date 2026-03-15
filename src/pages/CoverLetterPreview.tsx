@@ -130,20 +130,30 @@ export default function CoverLetterPreview() {
     try {
       const element = letterRef.current;
       
-      // Force natural size for capture
-      const originalStyle = element.style.transform;
+      // Force A4 dimensions for capture
+      const originalWidth = element.style.width;
+      const originalMinHeight = element.style.minHeight;
+      const originalTransform = element.style.transform;
+      const originalOverflow = element.style.overflow;
+      
+      element.style.width = '210mm';
+      element.style.minHeight = '297mm';
       element.style.transform = 'none';
+      element.style.overflow = 'visible';
       
       const dataUrl = await toPng(element, {
         quality: 1,
-        pixelRatio: 2,
+        pixelRatio: 3,
         backgroundColor: '#ffffff',
-        width: element.offsetWidth,
-        height: element.offsetHeight
+        width: element.scrollWidth,
+        height: element.scrollHeight
       });
 
       // Restore style
-      element.style.transform = originalStyle;
+      element.style.width = originalWidth;
+      element.style.minHeight = originalMinHeight;
+      element.style.transform = originalTransform;
+      element.style.overflow = originalOverflow;
 
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -434,6 +444,12 @@ export default function CoverLetterPreview() {
                     <span>{letter.data.email}</span>
                     <span>•</span>
                     <span>{letter.data.phone}</span>
+                    {letter.data.address && (
+                      <>
+                        <span>•</span>
+                        <span>{letter.data.address}</span>
+                      </>
+                    )}
                   </div>
                 </div>
               )}

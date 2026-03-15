@@ -27,7 +27,6 @@ export interface CVSections {
   interests: string;
   profile: string;
   divers: string;
-  references?: string;
   languages: string;
 }
 
@@ -47,14 +46,27 @@ export interface CVData {
   qualities: string[];
   flaws: string[];
   interests: string[];
+  languagesList: LanguageItem[];
   language: 'fr' | 'en';
-  template: 'modern' | 'classic' | 'creative' | 'blue' | 'pink' | 'dark' | 'orange';
+  template: 'modern' | 'classic' | 'creative' | 'blue' | 'pink' | 'dark' | 'orange' | 'dark-gold' | 'dark-minimal' | 'creative-gradient';
   isCompact?: boolean;
   jobTitle?: string;
   level?: string;
   sections?: CVSections;
-  references?: string;
   website?: string;
+  customSections?: CustomSection[];
+  layout?: CVLayout;
+}
+
+export interface CVLayout {
+  left: string[];
+  right: string[];
+}
+
+export interface CustomSection {
+  id: string;
+  title: string;
+  content: string;
 }
 
 export interface Experience {
@@ -71,13 +83,22 @@ export interface Education {
   year: string;
 }
 
+export interface LanguageItem {
+  name: string;
+  level: string;
+}
+
 export interface CoverLetterData {
   firstName: string;
   lastName: string;
   email: string;
   phone: string;
+  address: string;
   targetJob: string;
   company: string;
+  companyAddress: string;
+  recruiterName?: string;
+  jobCity: string;
   contractType: string;
   motivation: string;
 }
@@ -87,4 +108,32 @@ export interface CVScore {
   strengths: string[];
   weaknesses: string[];
   advice: string[];
+}
+
+export interface Invoice {
+  id: number;
+  invoiceNumber: string;
+  userId: number;
+  paymentId: number;
+  amount: number;
+  planType: string;
+  paymentMethod: string;
+  status: string;
+  createdAt: string;
+  clientName?: string;
+  clientEmail?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+}
+
+export interface Message {
+  id: number;
+  userId: number;
+  senderId: number;
+  content: string;
+  invoiceId?: number;
+  isRead: boolean;
+  createdAt: string;
+  invoice?: Invoice;
 }

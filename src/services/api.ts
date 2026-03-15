@@ -2,282 +2,308 @@
 // Client-side "Backend" using localStorage
 // This replaces all /api calls for a purely static deployment
 
-const STORAGE_KEYS = {
-  USERS: 'cv_app_users',
-  CVS: 'cv_app_cvs',
-  LETTERS: 'cv_app_letters',
-  PAYMENTS: 'cv_app_payments',
-  PROMOS: 'cv_app_promos',
-  CURRENT_USER: 'user',
-  TOKEN: 'token'
+const getAuthHeader = () => {
+  const token = localStorage.getItem('token');
+  return token ? { 'Authorization': `Bearer ${token}` } : {};
 };
-
-// Helper to get data from localStorage
-const get = (key: string) => JSON.parse(localStorage.getItem(key) || '[]');
-const set = (key: string, data: any) => localStorage.setItem(key, JSON.stringify(data));
-
-// Initialize Admin Account
-const initAdmin = () => {
-  const users = get(STORAGE_KEYS.USERS);
-  const adminEmail = 'peter25ngouala@gmail.com';
-  const adminPassword = 'Peter2005';
-  
-  if (!users.find((u: any) => u.email === adminEmail)) {
-    users.push({
-      id: 'admin-1',
-      firstName: 'Peter',
-      lastName: 'Admin',
-      email: adminEmail,
-      password: adminPassword,
-      role: 'admin',
-      isPremium: 1,
-      createdAt: new Date().toISOString()
-    });
-    set(STORAGE_KEYS.USERS, users);
-  }
-};
-
-initAdmin();
 
 export const api = {
+  public: {
+    getStats: async () => {
+      return fetch('/api/public/stats');
+    }
+  },
   auth: {
     login: async (credentials: any) => {
-      // FORCE ADMIN LOGIN (Master Access)
-      if (credentials.email === 'peter25ngouala@gmail.com' && credentials.password === 'Peter2005') {
-        const adminUser = {
-          id: 'admin-1',
-          firstName: 'Peter',
-          lastName: 'Admin',
-          email: 'peter25ngouala@gmail.com',
-          role: 'admin',
-          isPremium: 1,
-          createdAt: new Date().toISOString()
-        };
-        localStorage.setItem(STORAGE_KEYS.TOKEN, 'admin-master-token');
-        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(adminUser));
-        return { ok: true, json: async () => ({ token: 'admin-master-token', user: adminUser }) };
-      }
-
-      const users = get(STORAGE_KEYS.USERS);
-      const user = users.find((u: any) => u.email === credentials.email && u.password === credentials.password);
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(credentials)
+      });
       
-      if (user) {
-        const { password, ...userWithoutPassword } = user;
-        // Ensure specific admin always has admin role
-        if (user.email === 'peter25ngouala@gmail.com') {
-          userWithoutPassword.role = 'admin';
-        }
-        localStorage.setItem(STORAGE_KEYS.TOKEN, 'mock-token-' + user.id);
-        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(userWithoutPassword));
-        return { ok: true, json: async () => ({ token: 'mock-token', user: userWithoutPassword }) };
+      const clonedResponse = response.clone();
+      
+      if (response.ok) {
+        const data = await response.json();
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
       }
-      return { ok: false, status: 401, json: async () => ({ message: 'Identifiants invalides' }) };
+      return clonedResponse;
     },
     register: async (userData: any) => {
-      const users = get(STORAGE_KEYS.USERS);
-      if (users.find((u: any) => u.email === userData.email)) {
-        return { ok: false, status: 400, json: async () => ({ message: 'Email déjà utilisé' }) };
-      }
-      const newUser = { 
-        ...userData, 
-        id: Date.now(), 
-        role: userData.email === 'peter25ngouala@gmail.com' ? 'admin' : 'user',
-        isPremium: userData.email === 'peter25ngouala@gmail.com' ? 1 : 0,
-        createdAt: new Date().toISOString()
-      };
-      users.push(newUser);
-      set(STORAGE_KEYS.USERS, users);
-      return { ok: true, json: async () => ({ message: 'Inscription réussie' }) };
+      return fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData)
+      });
     },
     getProfile: async () => {
-      const user = JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_USER) || 'null');
-      if (user) {
-        // Refresh from "db"
-        const users = get(STORAGE_KEYS.USERS);
-        const updatedUser = users.find((u: any) => u.id === user.id);
-        if (updatedUser) {
-          const { password, ...safeUser } = updatedUser;
-          localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(safeUser));
-          return { ok: true, json: async () => safeUser };
-        }
-      }
-      return { ok: false, status: 401 };
+      return fetch('/api/profile', {
+        headers: { ...getAuthHeader() }
+      });
+    },
+    forgotPassword: async (email: string) => {
+      return fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+    },
+    resetPassword: async (data: any) => {
+      return fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+    },
+    getReferrals: async () => {
+      return fetch('/api/referrals', {
+        headers: { ...getAuthHeader() }
+      });
     },
     updateProfile: async (profileData: any) => {
-      const user = JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_USER) || 'null');
-      if (!user) return { ok: false, status: 401 };
-      
-      const users = get(STORAGE_KEYS.USERS);
-      const index = users.findIndex((u: any) => u.id === user.id);
-      if (index > -1) {
-        users[index] = { ...users[index], ...profileData };
-        set(STORAGE_KEYS.USERS, users);
-        
-        const { password, ...safeUser } = users[index];
-        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(safeUser));
-        return { ok: true, json: async () => safeUser };
-      }
-      return { ok: false, status: 404 };
+      return fetch('/api/profile', {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          ...getAuthHeader()
+        },
+        body: JSON.stringify(profileData)
+      });
     }
   },
   cvs: {
     list: async () => {
-      const user = JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_USER) || 'null');
-      const allCvs = get(STORAGE_KEYS.CVS);
-      const userCv = allCvs.find((cv: any) => cv.userId === user?.id);
-      return { ok: true, json: async () => userCv ? [userCv] : [] };
+      return fetch('/api/cvs', {
+        headers: { ...getAuthHeader() }
+      });
     },
     save: async (cvData: any) => {
-      const user = JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_USER) || 'null');
-      let cvs = get(STORAGE_KEYS.CVS);
-      
-      // Remove any existing CV for this user to ensure only ONE remains
-      cvs = cvs.filter((cv: any) => cv.userId !== user?.id);
-      
-      // Strip photo to save space
-      const { photo, ...textData } = cvData;
-      
-      const newCv = { ...textData, userId: user?.id, updatedAt: new Date().toISOString(), id: 'single-cv' };
-      cvs.push(newCv);
-      
-      try {
-        set(STORAGE_KEYS.CVS, cvs);
-      } catch (e) {
-        console.error("Failed to save CV to localStorage", e);
-        alert("Erreur : Espace de stockage plein.");
-        return { ok: false, status: 507 };
-      }
-      return { ok: true, json: async () => ({ success: true }) };
+      return fetch('/api/cvs', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          ...getAuthHeader()
+        },
+        body: JSON.stringify({ 
+          id: cvData.id || 'current-cv', 
+          data: cvData,
+          atsScore: cvData.atsScore,
+          isOptimized: cvData.isOptimized
+        })
+      });
     },
     delete: async (id: string) => {
-      const user = JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_USER) || 'null');
-      let cvs = get(STORAGE_KEYS.CVS);
-      cvs = cvs.filter((cv: any) => cv.userId !== user?.id);
-      set(STORAGE_KEYS.CVS, cvs);
-      
-      // Also clear the current session CV
-      localStorage.removeItem('currentCV');
-      localStorage.removeItem('currentCV_photo');
-      
-      return { ok: true };
+      return fetch(`/api/cvs/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: { ...getAuthHeader() }
+      });
     }
   },
   letters: {
     list: async () => {
-      const user = JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_USER) || 'null');
-      const letters = get(STORAGE_KEYS.LETTERS).filter((l: any) => l.userId === user?.id);
-      return { ok: true, json: async () => letters };
+      return fetch('/api/cover-letters', {
+        headers: { ...getAuthHeader() }
+      });
     },
     save: async (letterData: any) => {
-      const user = JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_USER) || 'null');
-      const letters = get(STORAGE_KEYS.LETTERS);
-      const index = letters.findIndex((l: any) => l.id === letterData.id);
-      
-      const newLetter = { ...letterData, userId: user?.id, updatedAt: new Date().toISOString() };
-      if (index > -1) {
-        letters[index] = newLetter;
-      } else {
-        letters.push({ ...newLetter, id: letterData.id || Date.now().toString() });
-      }
-      set(STORAGE_KEYS.LETTERS, letters);
-      return { ok: true, json: async () => ({ success: true }) };
+      return fetch('/api/cover-letters', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          ...getAuthHeader()
+        },
+        body: JSON.stringify({ id: letterData.id || Date.now().toString(), data: letterData, content: letterData.content })
+      });
     },
     delete: async (id: string) => {
-      const letters = get(STORAGE_KEYS.LETTERS).filter((l: any) => l.id !== id);
-      set(STORAGE_KEYS.LETTERS, letters);
-      return { ok: true };
+      return fetch(`/api/cover-letters/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: { ...getAuthHeader() }
+      });
     }
   },
   payments: {
     history: async () => {
-      const user = JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_USER) || 'null');
-      const payments = get(STORAGE_KEYS.PAYMENTS).filter((p: any) => p.userId === user?.id);
-      return { ok: true, json: async () => payments };
+      return fetch('/api/payments/history', {
+        headers: { ...getAuthHeader() }
+      });
     },
     request: async (data: any) => {
-      const user = JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_USER) || 'null');
-      const payments = get(STORAGE_KEYS.PAYMENTS);
-      const newPayment = {
-        ...data,
-        id: Date.now(),
-        userId: user?.id,
-        userEmail: user?.email,
-        userName: `${user?.firstName} ${user?.lastName}`,
-        status: 'En attente',
-        createdAt: new Date().toISOString()
-      };
-      payments.push(newPayment);
-      set(STORAGE_KEYS.PAYMENTS, payments);
-      return { ok: true, json: async () => ({ success: true }) };
+      return fetch('/api/payment/request', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          ...getAuthHeader()
+        },
+        body: JSON.stringify(data)
+      });
+    }
+  },
+  invoices: {
+    list: async () => {
+      return fetch('/api/invoices', {
+        headers: { ...getAuthHeader() }
+      });
+    }
+  },
+  ia: {
+    consume: async (type: 'cv' | 'letter') => {
+      return fetch('/api/ia/consume', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          ...getAuthHeader()
+        },
+        body: JSON.stringify({ type })
+      });
+    }
+  },
+  messages: {
+    list: async () => {
+      return fetch('/api/messages', {
+        headers: { ...getAuthHeader() }
+      });
+    },
+    markAsRead: async (id: number) => {
+      return fetch(`/api/messages/${id}/read`, {
+        method: 'POST',
+        headers: { ...getAuthHeader() }
+      });
+    }
+  },
+  reviews: {
+    list: async () => {
+      return fetch('/api/reviews');
+    },
+    submit: async (data: { rating: number, content: string }) => {
+      return fetch('/api/reviews', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          ...getAuthHeader()
+        },
+        body: JSON.stringify(data)
+      });
     }
   },
   admin: {
     getStats: async () => {
-      const users = get(STORAGE_KEYS.USERS);
-      const payments = get(STORAGE_KEYS.PAYMENTS);
-      const cvs = get(STORAGE_KEYS.CVS);
-      return { ok: true, json: async () => ({
-        users: users.length,
-        payments: payments.filter((p: any) => p.status === 'Confirmé').length,
-        cvs: cvs.length,
-        pending: payments.filter((p: any) => p.status === 'En attente').length
-      })};
+      return fetch('/api/admin/stats', {
+        headers: { ...getAuthHeader() }
+      });
+    },
+    getRevenueStats: async () => {
+      return fetch('/api/admin/revenue-stats', {
+        headers: { ...getAuthHeader() }
+      });
+    },
+    getIAStats: async () => {
+      return fetch('/api/admin/ia-stats', {
+        headers: { ...getAuthHeader() }
+      });
+    },
+    getReferralStats: async () => {
+      return fetch('/api/admin/referral-stats', {
+        headers: { ...getAuthHeader() }
+      });
     },
     getUsers: async () => {
-      return { ok: true, json: async () => get(STORAGE_KEYS.USERS) };
+      return fetch('/api/admin/users', {
+        headers: { ...getAuthHeader() }
+      });
+    },
+    banUser: async (id: number) => {
+      return fetch(`/api/admin/users/${id}/ban`, {
+        method: 'POST',
+        headers: { ...getAuthHeader() }
+      });
+    },
+    deleteUser: async (id: number) => {
+      return fetch(`/api/admin/users/${id}`, {
+        method: 'DELETE',
+        headers: { ...getAuthHeader() }
+      });
     },
     getPayments: async () => {
-      return { ok: true, json: async () => get(STORAGE_KEYS.PAYMENTS) };
+      return fetch('/api/admin/payments', {
+        headers: { ...getAuthHeader() }
+      });
     },
     getPromos: async () => {
-      return { ok: true, json: async () => get(STORAGE_KEYS.PROMOS) };
+      return fetch('/api/admin/promo-codes', {
+        headers: { ...getAuthHeader() }
+      });
     },
     createPromo: async (promoData: any) => {
-      const promos = get(STORAGE_KEYS.PROMOS);
-      const newPromo = { ...promoData, id: Date.now() };
-      promos.push(newPromo);
-      set(STORAGE_KEYS.PROMOS, promos);
-      return { ok: true, json: async () => newPromo };
+      return fetch('/api/admin/promo-codes', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          ...getAuthHeader()
+        },
+        body: JSON.stringify(promoData)
+      });
     },
     deletePromo: async (id: number) => {
-      const promos = get(STORAGE_KEYS.PROMOS).filter((p: any) => p.id !== id);
-      set(STORAGE_KEYS.PROMOS, promos);
-      return { ok: true };
+      return fetch(`/api/admin/promo-codes/${id}`, {
+        method: 'DELETE',
+        headers: { ...getAuthHeader() }
+      });
     },
     confirmPayment: async (id: number) => {
-      const payments = get(STORAGE_KEYS.PAYMENTS);
-      const payment = payments.find((p: any) => p.id === id);
-      if (payment) {
-        payment.status = 'Confirmé';
-        set(STORAGE_KEYS.PAYMENTS, payments);
-        
-        // Update user premium status
-        const users = get(STORAGE_KEYS.USERS);
-        const user = users.find((u: any) => u.id === payment.userId);
-        if (user) {
-          const expiry = new Date();
-          expiry.setHours(expiry.getHours() + 24);
-          const expiryStr = expiry.toISOString();
-          
-          if (payment.type === 'modern') user.modernExpiresAt = expiryStr;
-          if (payment.type === 'classic') user.classicExpiresAt = expiryStr;
-          if (payment.type === 'creative') user.creativeExpiresAt = expiryStr;
-          
-          user.isPremium = 1;
-          set(STORAGE_KEYS.USERS, users);
-        }
-      }
-      return { ok: true };
+      return fetch(`/api/admin/payments/${id}/confirm`, {
+        method: 'POST',
+        headers: { ...getAuthHeader() }
+      });
+    },
+    getInvoices: async () => {
+      return fetch('/api/admin/invoices', {
+        headers: { ...getAuthHeader() }
+      });
+    },
+    generateInvoice: async (paymentId: number) => {
+      return fetch(`/api/admin/payments/${paymentId}/generate-invoice`, {
+        method: 'POST',
+        headers: { ...getAuthHeader() }
+      });
+    },
+    sendMessage: async (data: { userId: number, content: string, invoiceId?: number }) => {
+      return fetch('/api/admin/messages/send', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          ...getAuthHeader()
+        },
+        body: JSON.stringify(data)
+      });
+    },
+    getReviews: async () => {
+      return fetch('/api/admin/reviews', {
+        headers: { ...getAuthHeader() }
+      });
+    },
+    approveReview: async (id: number) => {
+      return fetch(`/api/admin/reviews/${id}/approve`, {
+        method: 'PATCH',
+        headers: { ...getAuthHeader() }
+      });
+    },
+    deleteReview: async (id: number) => {
+      return fetch(`/api/admin/reviews/${id}`, {
+        method: 'DELETE',
+        headers: { ...getAuthHeader() }
+      });
+    },
+    getEmails: async () => {
+      return fetch('/api/admin/emails', {
+        headers: { ...getAuthHeader() }
+      });
     }
   },
   promoCodes: {
     validate: async (code: string) => {
-      const promos = get(STORAGE_KEYS.PROMOS);
-      const promo = promos.find((p: any) => p.code === code);
-      if (promo) {
-        return { ok: true, json: async () => ({ valid: true, discount: promo.discount }) };
-      }
-      return { ok: true, json: async () => ({ valid: false }) };
+      return fetch(`/api/promo-codes/validate/${code}`);
     }
   }
 };

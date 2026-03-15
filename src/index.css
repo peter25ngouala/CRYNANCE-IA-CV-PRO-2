@@ -38,6 +38,14 @@
   --color-purple-600: #9333ea;
 }
 
+@utility no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 @layer base {
   body {
     @apply font-sans bg-slate-50 text-slate-900;

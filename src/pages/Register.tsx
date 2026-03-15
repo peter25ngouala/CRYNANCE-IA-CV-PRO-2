@@ -1,39 +1,56 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Mail, Lock, Loader2, User as UserIcon } from 'lucide-react';
+import { Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 export default function Register() {
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const location = useLocation();
+  const { login } = useAuth();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
-    password: ''
+    password: '',
+    referredBy: null as number | null
   });
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const ref = params.get('ref');
+    if (ref) {
+      setFormData(prev => ({ ...prev, referredBy: parseInt(ref) }));
+    }
+  }, [location]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError(null);
     try {
       const response = await api.auth.register(formData);
       const data = await response.json() as any;
       if (response.ok) {
         // Auto login after register
         const loginRes = await api.auth.login({ email: formData.email, password: formData.password });
+        const loginData = await loginRes.json() as any;
         if (loginRes.ok) {
+          login(loginData.token, loginData.user);
           navigate('/dashboard');
         } else {
           navigate('/login');
         }
       } else {
-        alert(data.message || 'Erreur lors de l\'inscription');
+        setError(data.message || 'Erreur lors de l\'inscription');
       }
     } catch (error) {
       console.error(error);
+      setError('Une erreur réseau est survenue. Veuillez réessayer.');
     } finally {
       setIsLoading(false);
     }
@@ -50,6 +67,17 @@ export default function Register() {
           <h1 className="text-3xl font-bold text-slate-900">Créer un compte</h1>
           <p className="text-slate-500 mt-2">Rejoignez des milliers de professionnels.</p>
         </div>
+
+        {error && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm flex items-center space-x-3"
+          >
+            <AlertCircle size={20} className="flex-shrink-0" />
+            <span>{error}</span>
+          </motion.div>
+        )}
 
         <form onSubmit={handleRegister} className="space-y-6">
           <div className="grid grid-cols-2 gap-4">

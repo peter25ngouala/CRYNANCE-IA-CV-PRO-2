@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { Plus, Trash2, Tag, Percent, DollarSign, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 interface PromoCode {
   id: number;
@@ -19,15 +20,15 @@ export default function AdminPromo() {
   const [isAdding, setIsAdding] = useState(false);
   const [newCode, setNewCode] = useState({ code: '', discount: 0, type: 'fixed', startDate: '', endDate: '' });
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem('user') || 'null');
+  const { user } = useAuth();
 
   useEffect(() => {
-    if (!user || user.role !== 'admin') {
+    if (!user || (user.email !== 'peter25ngouala@gmail.com' && user.role !== 'admin')) {
       navigate('/');
       return;
     }
     fetchPromos();
-  }, [navigate]);
+  }, [navigate, user]);
 
   const fetchPromos = async () => {
     try {

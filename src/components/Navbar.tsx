@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { FileText, User, CreditCard, Home, LogOut, Menu, X, ShieldCheck, MessageCircle, HelpCircle } from 'lucide-react';
+import { FileText, User, CreditCard, Home, LogOut, Menu, X, ShieldCheck, HelpCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { storage } from '../utils/storage';
+import { useAuth } from '../context/AuthContext';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const user = JSON.parse(localStorage.getItem('user') || 'null');
+  const { user, logout } = useAuth();
   const isAdmin = user?.email === 'peter25ngouala@gmail.com' || user?.role === 'admin';
 
   useEffect(() => {
@@ -18,8 +20,7 @@ export default function Navbar() {
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    logout();
     navigate('/');
   };
 
@@ -33,9 +34,11 @@ export default function Navbar() {
       navLinks.push({ name: 'Admin: Utilisateurs', path: '/admin?tab=users', icon: User });
       navLinks.push({ name: 'Admin: Paiements', path: '/admin?tab=payments', icon: CreditCard });
       navLinks.push({ name: 'Admin: Codes Promo', path: '/admin?tab=promos', icon: ShieldCheck });
+      navLinks.push({ name: 'Mon Profil', path: '/profile', icon: User });
     } else {
       navLinks.push({ name: 'Mes CV', path: '/dashboard', icon: FileText });
       navLinks.push({ name: 'Mes Lettres', path: '/dashboard', icon: FileText });
+      navLinks.push({ name: 'Mon Profil', path: '/profile', icon: User });
       navLinks.push({ name: 'Premium', path: '/premium', icon: CreditCard });
     }
   } else {
@@ -44,7 +47,6 @@ export default function Navbar() {
   }
 
   navLinks.push({ name: 'Aide & FAQ', path: '/help', icon: HelpCircle });
-  navLinks.push({ name: 'Contact', path: '/contact', icon: MessageCircle });
 
   return (
     <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled ? 'bg-white/90 backdrop-blur-md shadow-sm py-3' : 'bg-transparent py-5'}`}>
@@ -70,6 +72,9 @@ export default function Navbar() {
               <Link
                 key={link.name}
                 to={link.path}
+                onClick={() => {
+                  if (link.path === '/create-cv') storage.clearCV();
+                }}
                 className={`text-sm font-medium transition-colors hover:text-primary ${location.pathname === link.path ? 'text-primary' : 'text-slate-600'}`}
               >
                 {link.name}
@@ -100,34 +105,63 @@ export default function Navbar() {
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="md:hidden bg-white border-b border-slate-100 overflow-hidden"
+            initial={{ opacity: 0, x: '100%' }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className="fixed inset-0 z-[60] md:hidden bg-white"
           >
-            <div className="px-4 pt-2 pb-6 space-y-1">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.name}
-                  to={link.path}
-                  onClick={() => setIsOpen(false)}
-                  className="block px-3 py-4 text-base font-medium text-slate-700 hover:bg-slate-50 rounded-lg"
-                >
-                  <div className="flex items-center space-x-3">
-                    <link.icon size={20} className="text-primary" />
-                    <span>{link.name}</span>
+            <div className="flex flex-col h-full">
+              <div className="flex items-center justify-between p-6 border-b border-slate-100">
+                <Link to="/" onClick={() => setIsOpen(false)} className="flex items-center space-x-2">
+                  <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white">
+                    <FileText size={18} />
                   </div>
+                  <span className="text-lg font-black text-slate-900">CRYNANCE</span>
                 </Link>
-              ))}
-              {!user && (
-                <Link
-                  to="/login"
-                  onClick={() => setIsOpen(false)}
-                  className="block w-full text-center bg-primary text-white py-3 rounded-xl mt-4 font-medium"
-                >
-                  Connexion
-                </Link>
-              )}
+                <button onClick={() => setIsOpen(false)} className="p-2 text-slate-500 hover:bg-slate-100 rounded-xl">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto py-8 px-6 space-y-2">
+                {navLinks.map((link) => (
+                  <Link
+                    key={link.name}
+                    to={link.path}
+                    onClick={() => {
+                      setIsOpen(false);
+                      if (link.path === '/create-cv') storage.clearCV();
+                    }}
+                    className={`flex items-center space-x-4 p-4 rounded-2xl transition-all ${location.pathname === link.path ? 'bg-primary/5 text-primary' : 'text-slate-600 hover:bg-slate-50'}`}
+                  >
+                    <div className={`p-2 rounded-xl ${location.pathname === link.path ? 'bg-primary text-white' : 'bg-slate-100 text-slate-500'}`}>
+                      <link.icon size={20} />
+                    </div>
+                    <span className="font-bold">{link.name}</span>
+                  </Link>
+                ))}
+              </div>
+
+              <div className="p-6 border-t border-slate-100 space-y-4">
+                {user ? (
+                  <button 
+                    onClick={() => { handleLogout(); setIsOpen(false); }}
+                    className="w-full flex items-center justify-center space-x-2 p-4 rounded-2xl bg-red-50 text-red-600 font-bold hover:bg-red-100 transition-all"
+                  >
+                    <LogOut size={20} />
+                    <span>Déconnexion</span>
+                  </button>
+                ) : (
+                  <Link
+                    to="/login"
+                    onClick={() => setIsOpen(false)}
+                    className="block w-full text-center bg-primary text-white py-4 rounded-2xl font-bold shadow-xl shadow-primary/20"
+                  >
+                    Connexion
+                  </Link>
+                )}
+              </div>
             </div>
           </motion.div>
         )}

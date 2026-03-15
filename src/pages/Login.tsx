@@ -1,32 +1,41 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Mail, Lock, Loader2, ArrowRight, User as UserIcon } from 'lucide-react';
+import { Mail, Lock, Loader2, User as UserIcon, AlertCircle } from 'lucide-react';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth();
+
+  const from = (location.state as any)?.from?.pathname || "/dashboard";
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError(null);
     try {
       const response = await api.auth.login({ email, password });
       const data = await response.json() as any;
       if (response.ok) {
+        login(data.token, data.user);
         if (data.user.email === 'peter25ngouala@gmail.com' || data.user.role === 'admin') {
           navigate('/admin');
         } else {
-          navigate('/dashboard');
+          navigate(from, { replace: true });
         }
       } else {
-        alert(data.message || 'Erreur de connexion');
+        setError(data.error || data.message || 'Erreur de connexion');
       }
     } catch (error) {
       console.error(error);
+      setError('Une erreur réseau est survenue. Veuillez réessayer.');
     } finally {
       setIsLoading(false);
     }
@@ -47,6 +56,17 @@ export default function Login() {
           <p className="text-slate-500 mt-2">Accédez à vos CV et lettres de motivation.</p>
         </div>
 
+        {error && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm flex items-center space-x-3"
+          >
+            <AlertCircle size={20} className="flex-shrink-0" />
+            <span>{error}</span>
+          </motion.div>
+        )}
+
         <form onSubmit={handleLogin} className="space-y-6">
           <div className="space-y-2">
             <label className="text-sm font-semibold text-slate-700">Email</label>
@@ -64,7 +84,12 @@ export default function Login() {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-700">Mot de passe</label>
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-semibold text-slate-700">Mot de passe</label>
+              <Link to="/forgot-password" className="text-sm font-bold text-primary hover:text-primary-dark transition-colors">
+                Mot de passe oublié ?
+              </Link>
+            </div>
             <div className="relative">
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
               <input 

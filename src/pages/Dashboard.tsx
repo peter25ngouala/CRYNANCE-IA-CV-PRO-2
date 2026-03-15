@@ -4,10 +4,14 @@ import { motion } from 'motion/react';
 import { 
   FileText, Plus, Trash2, Edit, ExternalLink, 
   Loader2, User as UserIcon, CreditCard, Zap, 
-  Mail, Phone, Save, Clock, HelpCircle, ArrowRight 
+  Mail, Phone, Save, Clock, HelpCircle, ArrowRight,
+  MessageSquare, Receipt, Download, Eye, Bell, Users
 } from 'lucide-react';
 import { api } from '../services/api';
 import { storage } from '../utils/storage';
+import { InvoicePDF } from '../components/InvoicePDF';
+import { Invoice, Message } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 const CountdownTimer = ({ expiryDate, onExpire }: { expiryDate: string, onExpire: () => void }) => {
   const [timeLeft, setTimeLeft] = useState<string>('');
@@ -42,60 +46,74 @@ const CountdownTimer = ({ expiryDate, onExpire }: { expiryDate: string, onExpire
 export default function Dashboard() {
   const [cvs, setCvs] = useState<any[]>([]);
   const [letters, setLetters] = useState<any[]>([]);
+  const [referrals, setReferrals] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [activeTab, setActiveTab] = useState<'cvs' | 'letters' | 'profile' | 'payments'>('cvs');
+  const [activeTab, setActiveTab] = useState<'cvs' | 'letters' | 'payments' | 'messages' | 'invoices' | 'referral'>('cvs');
+  const [userData, setUserData] = useState<any>(null);
   const [payments, setPayments] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
   const [profileData, setProfileData] = useState({
     firstName: '',
     lastName: '',
     phone: ''
   });
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem('user') || 'null');
+  const { user, updateUser } = useAuth();
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      navigate('/login');
-      return;
-    }
-    fetchData(token);
     if (user) {
       setProfileData({
         firstName: user.firstName || '',
         lastName: user.lastName || '',
         phone: user.phone || ''
       });
+      fetchData();
     }
-  }, [navigate]);
+  }, [user]);
 
-  const fetchData = async (token: string) => {
+  const fetchData = async () => {
     try {
-      const [cvsRes, lettersRes, paymentsRes, profileRes] = await Promise.all([
+      const [cvsRes, lettersRes, paymentsRes, profileRes, invoicesRes, messagesRes, referralsRes] = await Promise.all([
         api.cvs.list(),
         api.letters.list(),
         api.payments.history(),
-        api.auth.getProfile()
+        api.auth.getProfile(),
+        api.invoices.list(),
+        api.messages.list(),
+        api.auth.getReferrals()
       ]);
 
-      if (!cvsRes.ok || !lettersRes.ok || !paymentsRes.ok || !profileRes.ok) {
+      if (!cvsRes.ok || !lettersRes.ok || !paymentsRes.ok || !profileRes.ok || !invoicesRes.ok || !messagesRes.ok || !referralsRes.ok) {
         throw new Error('Failed to fetch dashboard data');
       }
 
-      const [cvsData, lettersData, paymentsData, profileData] = await Promise.all([
+      const [cvsData, lettersData, paymentsData, profileData, invoicesData, messagesData, referralsData] = await Promise.all([
         cvsRes.json(), 
         lettersRes.json(),
         paymentsRes.json(),
-        profileRes.json()
+        profileRes.json(),
+        invoicesRes.json(),
+        messagesRes.json(),
+        referralsRes.json()
       ]);
       
       setCvs(cvsData);
       setLetters(lettersData);
       setPayments(paymentsData);
+      setUserData(profileData);
+      setInvoices(invoicesData);
+      setMessages(messagesData);
+      setReferrals(referralsData);
+      if (Array.isArray(messagesData)) {
+        setUnreadCount(messagesData.filter((m: Message) => !m.isRead).length);
+      }
       
-      // Update local storage with fresh user data
-      localStorage.setItem('user', JSON.stringify(profileData));
+      // Update auth context with fresh user data
+      updateUser(profileData);
       setProfileData({
         firstName: profileData.firstName || '',
         lastName: profileData.lastName || '',
@@ -114,6 +132,8 @@ export default function Dashboard() {
     try {
       const res = await api.auth.updateProfile(profileData);
       if (res.ok) {
+        const updatedUser = await res.json();
+        updateUser(updatedUser);
         alert("Profil mis à jour !");
       } else {
         alert("Erreur lors de la mise à jour du profil.");
@@ -129,21 +149,34 @@ export default function Dashboard() {
   const deleteCv = async (id: string) => {
     if (!confirm("Supprimer ce CV ?")) return;
     try {
-      await api.cvs.delete(id);
-      setCvs([]); // Ensure list is cleared as only one CV is allowed
-      alert("CV supprimé avec succès");
+      const res = await api.cvs.delete(id);
+      if (res.ok) {
+        setCvs(prev => prev.filter(cv => String(cv.id) !== String(id)));
+        alert("CV supprimé avec succès");
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        alert(`Erreur lors de la suppression du CV: ${errorData.error || 'Erreur inconnue'}`);
+      }
     } catch (error) {
       console.error(error);
+      alert("Une erreur est survenue lors de la suppression");
     }
   };
 
   const deleteLetter = async (id: string) => {
     if (!confirm("Supprimer cette lettre ?")) return;
     try {
-      await api.letters.delete(id);
-      setLetters(letters.filter(l => l.id !== id));
+      const res = await api.letters.delete(id);
+      if (res.ok) {
+        setLetters(prev => prev.filter(l => String(l.id) !== String(id)));
+        alert("Lettre supprimée avec succès");
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        alert(`Erreur lors de la suppression: ${errorData.error || 'Erreur inconnue'}`);
+      }
     } catch (error) {
       console.error(error);
+      alert("Une erreur est survenue lors de la suppression");
     }
   };
 
@@ -152,33 +185,50 @@ export default function Dashboard() {
     navigate('/create-cv');
   };
 
+  const handleMarkAsRead = async (id: number) => {
+    try {
+      await api.messages.markAsRead(id);
+      setMessages(messages.map(m => m.id === id ? { ...m, isRead: true } : m));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   return (
     <div className="pt-24 pb-16 px-4">
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-6">
           <div>
-            <h1 className="text-4xl font-bold text-slate-900 mb-2">Bonjour, {user?.firstName}</h1>
+            <h1 className="text-4xl font-bold text-slate-900 mb-2">Bonjour, {userData?.firstName}</h1>
             <p className="text-slate-600">Gérez vos CV et lettres de motivation ici.</p>
           </div>
           <div className="flex space-x-4">
-            <Link to="/create-cv" className="bg-primary text-white px-6 py-3 rounded-xl font-bold flex items-center space-x-2 hover:bg-primary-dark transition-all shadow-lg shadow-primary/20">
+            <button 
+              onClick={() => {
+                storage.clearCV();
+                navigate('/create-cv');
+              }}
+              className="bg-primary text-white px-6 py-3 rounded-xl font-bold flex items-center space-x-2 hover:bg-primary-dark transition-all shadow-lg shadow-primary/20"
+            >
               <Plus size={20} />
               <span>Nouveau CV</span>
-            </Link>
-            <Link to="/cover-letter" className="bg-white text-slate-700 border border-slate-200 px-6 py-3 rounded-xl font-bold flex items-center space-x-2 hover:bg-slate-50 transition-all">
+            </button>
+            <button 
+              onClick={() => {
+                storage.saveLetterData(null);
+                localStorage.removeItem('currentLetterContent');
+                navigate('/cover-letter');
+              }}
+              className="bg-white text-slate-700 border border-slate-200 px-6 py-3 rounded-xl font-bold flex items-center space-x-2 hover:bg-slate-50 transition-all"
+            >
               <Plus size={20} />
               <span>Nouvelle Lettre</span>
-            </Link>
+            </button>
           </div>
         </div>
 
         <div className="flex space-x-4 mb-8 border-b border-slate-100">
-          <button 
-            onClick={() => setActiveTab('profile')}
-            className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 ${activeTab === 'profile' ? 'border-primary text-primary' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-          >
-            Mon profil
-          </button>
           <button 
             onClick={() => setActiveTab('cvs')}
             className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 ${activeTab === 'cvs' ? 'border-primary text-primary' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
@@ -197,6 +247,27 @@ export default function Dashboard() {
           >
             Mes paiements
           </button>
+          <button 
+            onClick={() => setActiveTab('invoices')}
+            className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 ${activeTab === 'invoices' ? 'border-primary text-primary' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+          >
+            Mes factures ({invoices.length})
+          </button>
+          <button 
+            onClick={() => setActiveTab('referral')}
+            className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 ${activeTab === 'referral' ? 'border-primary text-primary' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+          >
+            Parrainage
+          </button>
+          <button 
+            onClick={() => setActiveTab('messages')}
+            className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 relative ${activeTab === 'messages' ? 'border-primary text-primary' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+          >
+            <span>Messages</span>
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+            )}
+          </button>
         </div>
 
         <div className="grid lg:grid-cols-4 gap-8">
@@ -207,12 +278,12 @@ export default function Dashboard() {
                 <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 mb-4">
                   <UserIcon size={40} />
                 </div>
-                <h3 className="font-bold text-slate-900">{user?.firstName} {user?.lastName}</h3>
-                <p className="text-sm text-slate-500">{user?.email}</p>
-                {(user?.modernExpiresAt && new Date(user.modernExpiresAt) > new Date()) || 
-                 (user?.classicExpiresAt && new Date(user.classicExpiresAt) > new Date()) || 
-                 (user?.creativeExpiresAt && new Date(user.creativeExpiresAt) > new Date()) || 
-                 user?.isPremium ? (
+                <h3 className="font-bold text-slate-900">{userData?.firstName} {userData?.lastName}</h3>
+                <p className="text-sm text-slate-500">{userData?.email}</p>
+                {(userData?.modernExpiresAt && new Date(userData.modernExpiresAt) > new Date()) || 
+                 (userData?.classicExpiresAt && new Date(userData.classicExpiresAt) > new Date()) || 
+                 (userData?.creativeExpiresAt && new Date(userData.creativeExpiresAt) > new Date()) || 
+                 userData?.isPremium ? (
                   <span className="mt-2 px-3 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase rounded-full">Premium Pro Actif</span>
                 ) : (
                   <span className="mt-2 px-3 py-1 bg-slate-100 text-slate-500 text-[10px] font-black uppercase rounded-full">Compte Gratuit</span>
@@ -221,7 +292,7 @@ export default function Dashboard() {
               
               <div className="pt-6 border-t border-slate-100 space-y-3">
                 {['modern', 'classic', 'creative'].map((type) => {
-                  const expiry = user?.[`${type}ExpiresAt`];
+                  const expiry = userData?.[`${type}ExpiresAt`];
                   const isActive = expiry && new Date(expiry) > new Date();
                   
                   return (
@@ -249,7 +320,7 @@ export default function Dashboard() {
                   );
                 })}
                 
-                {!user?.isPremium && (
+                {!userData?.isPremium && (
                   <Link to="/premium" className="p-4 rounded-2xl flex items-center justify-between bg-primary text-white hover:bg-primary-dark transition-all shadow-lg shadow-primary/20">
                     <div className="flex items-center space-x-2">
                       <Zap size={18} />
@@ -272,7 +343,108 @@ export default function Dashboard() {
 
           {/* Main Content */}
           <div className="lg:col-span-3">
-            {activeTab === 'cvs' && (
+            {activeTab === 'referral' && (
+          <div className="space-y-8">
+            <div className="bg-slate-900 rounded-[2.5rem] p-10 md:p-16 relative overflow-hidden text-white">
+              <div className="absolute top-0 right-0 -mt-20 -mr-20 w-64 h-64 bg-primary/20 rounded-full blur-3xl"></div>
+              <div className="relative z-10">
+                <h2 className="text-3xl font-black mb-4">Programme de Parrainage</h2>
+                <p className="text-slate-400 text-lg mb-8 max-w-2xl">
+                  Invitez vos amis et gagnez du temps d'abonnement gratuit pour chaque inscription confirmée.
+                </p>
+                
+                <div className="grid md:grid-cols-3 gap-6 mb-10">
+                  <div className="bg-white/5 backdrop-blur-sm p-6 rounded-3xl border border-white/10">
+                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">1 Ami</p>
+                    <p className="text-xl font-black">12 Heures Gratuites</p>
+                  </div>
+                  <div className="bg-white/5 backdrop-blur-sm p-6 rounded-3xl border border-white/10">
+                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">3 Amis</p>
+                    <p className="text-xl font-black">24 Heures Gratuites</p>
+                  </div>
+                  <div className="bg-white/5 backdrop-blur-sm p-6 rounded-3xl border border-white/10">
+                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">10 Amis</p>
+                    <p className="text-xl font-black">7 Jours Gratuits</p>
+                  </div>
+                </div>
+
+                <div className="bg-white/10 p-6 rounded-3xl border border-white/20">
+                  <p className="text-sm font-bold mb-3">Votre lien de parrainage unique :</p>
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <input 
+                      readOnly 
+                      value={`${window.location.origin}/register?ref=${userData?.id}`}
+                      className="flex-1 bg-black/20 border border-white/10 rounded-xl px-4 py-3 font-mono text-sm outline-none"
+                    />
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/register?ref=${userData?.id}`);
+                        alert("Lien copié !");
+                      }}
+                      className="bg-primary text-white px-8 py-3 rounded-xl font-bold hover:bg-primary-dark transition-all"
+                    >
+                      Copier le lien
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-8">
+              <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
+                <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center space-x-2">
+                  <Users className="text-primary" />
+                  <span>Amis Invités ({referrals.length})</span>
+                </h3>
+                <div className="space-y-4">
+                  {referrals.length === 0 ? (
+                    <p className="text-slate-500 text-center py-8">Vous n'avez pas encore invité d'amis.</p>
+                  ) : (
+                    referrals.map((ref) => (
+                      <div key={ref.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                        <div>
+                          <p className="font-bold text-slate-900">{ref.firstName} {ref.lastName}</p>
+                          <p className="text-xs text-slate-500">{new Date(ref.createdAt).toLocaleDateString()}</p>
+                        </div>
+                        {ref.rewardGranted ? (
+                          <span className="bg-emerald-100 text-emerald-700 text-[10px] font-black px-2 py-1 rounded-full uppercase">
+                            Récompense : {ref.rewardGranted}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 text-[10px] font-bold uppercase">En attente</span>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
+                <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center space-x-2">
+                  <Zap className="text-amber-500" />
+                  <span>Vos Statistiques IA</span>
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 text-center">
+                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">CV Restants</p>
+                    <p className="text-3xl font-black text-slate-900">{userData?.cvGenerationsRemaining || 0}</p>
+                  </div>
+                  <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 text-center">
+                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Lettres Restantes</p>
+                    <p className="text-3xl font-black text-slate-900">{userData?.letterGenerationsRemaining || 0}</p>
+                  </div>
+                </div>
+                <div className="mt-6 p-4 bg-amber-50 border border-amber-100 rounded-2xl">
+                  <p className="text-xs text-amber-800 font-medium leading-relaxed">
+                    Chaque abonnement vous donne droit à 5 générations de CV et 5 générations de lettres de motivation. Renouvelez votre abonnement pour recharger vos crédits.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'cvs' && (
               <>
                 <h2 className="text-xl font-bold text-slate-900 mb-6">Mes CVs</h2>
                 {isLoading ? (
@@ -315,10 +487,16 @@ export default function Dashboard() {
                   <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl p-20 text-center">
                     <FileText className="mx-auto text-slate-300 mb-4" size={48} />
                     <p className="text-slate-500 font-medium mb-6">Vous n'avez pas encore créé de CV.</p>
-                    <Link to="/create-cv" className="bg-primary text-white px-8 py-3 rounded-xl font-bold inline-flex items-center space-x-2">
+                    <button 
+                      onClick={() => {
+                        storage.clearCV();
+                        navigate('/create-cv');
+                      }}
+                      className="bg-primary text-white px-8 py-3 rounded-xl font-bold inline-flex items-center space-x-2"
+                    >
                       <Plus size={20} />
                       <span>Créer mon premier CV</span>
-                    </Link>
+                    </button>
                   </div>
                 )}
               </>
@@ -478,9 +656,124 @@ export default function Dashboard() {
                 )}
               </div>
             )}
+            {activeTab === 'invoices' && (
+              <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
+                <h2 className="text-2xl font-bold text-slate-900 mb-8">Mes Factures</h2>
+                {invoices.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="text-left border-b border-slate-100">
+                          <th className="pb-4 font-bold text-slate-500 uppercase text-xs">N° Facture</th>
+                          <th className="pb-4 font-bold text-slate-500 uppercase text-xs">Plan</th>
+                          <th className="pb-4 font-bold text-slate-500 uppercase text-xs">Montant</th>
+                          <th className="pb-4 font-bold text-slate-500 uppercase text-xs">Date</th>
+                          <th className="pb-4 font-bold text-slate-500 uppercase text-xs">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {invoices.map((inv) => (
+                          <tr key={inv.id}>
+                            <td className="py-4 font-mono font-bold text-slate-900">{inv.invoiceNumber}</td>
+                            <td className="py-4">
+                              <span className="font-bold text-slate-700 capitalize">{inv.planType}</span>
+                            </td>
+                            <td className="py-4 font-bold text-slate-900">{inv.amount} FCFA</td>
+                            <td className="py-4 text-slate-500 text-sm">{new Date(inv.createdAt).toLocaleDateString()}</td>
+                            <td className="py-4">
+                              <button 
+                                onClick={() => setPreviewInvoice(inv)}
+                                className="text-primary hover:text-primary-dark p-2 transition-colors"
+                                title="Télécharger PDF"
+                              >
+                                <Download size={18} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <Receipt className="mx-auto text-slate-200 mb-4" size={48} />
+                    <p className="text-slate-500">Aucune facture disponible.</p>
+                  </div>
+                )}
+              </div>
+            )}
+            {activeTab === 'messages' && (
+              <div className="space-y-6">
+                <h2 className="text-2xl font-bold text-slate-900 mb-2">Messages de l'Administrateur</h2>
+                {messages.length > 0 ? (
+                  <div className="space-y-4">
+                    {messages.map((msg) => (
+                      <motion.div 
+                        key={msg.id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className={`p-6 rounded-3xl border transition-all ${msg.isRead ? 'bg-white border-slate-100' : 'bg-blue-50 border-blue-100 shadow-lg shadow-blue-500/5'}`}
+                        onClick={() => !msg.isRead && handleMarkAsRead(msg.id)}
+                      >
+                        <div className="flex justify-between items-start mb-4">
+                          <div className="flex items-center space-x-3">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${msg.isRead ? 'bg-slate-100 text-slate-400' : 'bg-blue-500 text-white'}`}>
+                              <MessageSquare size={20} />
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-900">Administrateur CRYNANCE</p>
+                              <p className="text-xs text-slate-500">{new Date(msg.createdAt).toLocaleString()}</p>
+                            </div>
+                          </div>
+                          {!msg.isRead && (
+                            <span className="bg-blue-500 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded-full">Nouveau</span>
+                          )}
+                        </div>
+                        <p className="text-slate-700 font-medium mb-6 leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                        
+                        {msg.invoice && (
+                          <div className="bg-white border border-slate-100 rounded-2xl p-4 flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
+                                <Receipt size={20} />
+                              </div>
+                              <div>
+                                <p className="text-sm font-bold text-slate-900">Facture #{msg.invoice.invoiceNumber}</p>
+                                <p className="text-xs text-slate-500">{msg.invoice.amount} FCFA - {msg.invoice.planType}</p>
+                              </div>
+                            </div>
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPreviewInvoice(msg.invoice!);
+                              }}
+                              className="bg-emerald-500 text-white p-2 rounded-xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
+                            >
+                              <Download size={18} />
+                            </button>
+                          </div>
+                        )}
+                      </motion.div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-white p-12 rounded-[2.5rem] shadow-xl border border-slate-100 text-center">
+                    <Mail className="mx-auto text-slate-200 mb-4" size={48} />
+                    <p className="text-slate-500 font-medium">Vous n'avez aucun message pour le moment.</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
+
+      {previewInvoice && (
+        <InvoicePDF 
+          invoice={previewInvoice} 
+          onClose={() => setPreviewInvoice(null)} 
+        />
+      )}
     </div>
   );
 }

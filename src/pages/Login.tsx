@@ -27,11 +27,15 @@ export default function Login() {
         navigate(from, { replace: true });
       }
     } catch (error: any) {
-      console.error(error);
+      console.error("Firebase Login Error:", error);
       if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
         setError('Email ou mot de passe incorrect.');
+      } else if (error.code === 'auth/unauthorized-domain') {
+        setError('Ce domaine n\'est pas autorisé dans la console Firebase. Veuillez ajouter votre lien Vercel aux domaines autorisés.');
+      } else if (error.code === 'auth/network-request-failed') {
+        setError('Erreur réseau. Vérifiez votre connexion internet.');
       } else {
-        setError('Une erreur est survenue lors de la connexion.');
+        setError(`Erreur: ${error.message || 'Une erreur est survenue lors de la connexion.'}`);
       }
     } finally {
       setIsLoading(false);

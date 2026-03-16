@@ -13,24 +13,32 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 // Initialize Firebase Admin
-if (!admin.apps.length) {
-  try {
+let db: admin.firestore.Firestore;
+
+try {
+  if (!admin.apps.length) {
     if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
       admin.initializeApp({
-        credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)),
-        databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}.firebaseio.com`
+        credential: admin.credential.cert(serviceAccount),
+        databaseURL: `https://${process.env.FIREBASE_PROJECT_ID || serviceAccount.project_id}.firebaseio.com`
       });
+      console.log('Firebase Admin initialized with service account');
     } else {
+      // On Vercel, this will fail if not configured correctly, so we log a warning
+      console.warn('FIREBASE_SERVICE_ACCOUNT is missing. Attempting default initialization...');
       admin.initializeApp({
         projectId: process.env.FIREBASE_PROJECT_ID || 'crynance-ia-cv-pro-2'
       });
     }
-  } catch (error) {
-    console.error('Firebase Admin initialization error:', error);
   }
+  db = admin.firestore();
+} catch (error) {
+  console.error('CRITICAL: Firebase Admin initialization failed:', error);
+  // We still want the app to start but routes using db will fail with a clear error
 }
 
-const db = admin.firestore();
+export { db };
 
 // Configuration CORS
 app.use(cors({

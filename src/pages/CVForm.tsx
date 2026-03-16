@@ -99,7 +99,7 @@ export default function CVForm() {
 
     setIsGenerating(true);
     try {
-      console.log(">>> Consuming credit for user:", user.id);
+      console.log(">>> Consuming credit for user:", user.uid);
       // Check and consume generation credit
       const consumeRes = await api.ia.consume('cv');
       console.log(">>> Consume response status:", consumeRes.status);

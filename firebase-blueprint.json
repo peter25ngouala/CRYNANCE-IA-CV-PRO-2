@@ -1,0 +1,38 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "CV": {
+      "title": "CV",
+      "description": "Generated CV data",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner's UID" },
+        "title": { "type": "string" },
+        "content": { "type": "string", "description": "CV content in JSON or Markdown" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "content"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/cvs/{cvId}": {
+      "schema": "CV",
+      "description": "Generated CVs"
+    }
+  }
+}

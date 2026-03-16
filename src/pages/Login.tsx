@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Mail, Lock, Loader2, User as UserIcon, AlertCircle } from 'lucide-react';
-import { api } from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { auth } from '../firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
 export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
@@ -12,7 +12,6 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
-  const { login } = useAuth();
 
   const from = (location.state as any)?.from?.pathname || "/dashboard";
 
@@ -21,21 +20,19 @@ export default function Login() {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await api.auth.login({ email, password });
-      const data = await response.json() as any;
-      if (response.ok) {
-        login(data.token, data.user);
-        if (data.user.email === 'peter25ngouala@gmail.com' || data.user.role === 'admin') {
-          navigate('/admin');
-        } else {
-          navigate(from, { replace: true });
-        }
+      await signInWithEmailAndPassword(auth, email, password);
+      if (email === 'peter25ngouala@gmail.com') {
+        navigate('/admin');
       } else {
-        setError(data.error || data.message || 'Erreur de connexion');
+        navigate(from, { replace: true });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      setError('Une erreur réseau est survenue. Veuillez réessayer.');
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        setError('Email ou mot de passe incorrect.');
+      } else {
+        setError('Une erreur est survenue lors de la connexion.');
+      }
     } finally {
       setIsLoading(false);
     }

@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { api } from '../services/api';
+import { auth, db } from '../firebase';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 interface User {
-  id: number;
-  email: string;
+  uid: string;
+  email: string | null;
   firstName: string;
   lastName: string;
   phone: string;
@@ -14,15 +16,16 @@ interface User {
   creativeExpiresAt?: string;
   cvGenerationsRemaining?: number;
   letterGenerationsRemaining?: number;
+  address?: string;
+  bio?: string;
+  status?: string;
 }
 
 interface AuthContextType {
   user: User | null;
-  token: string | null;
+  firebaseUser: FirebaseUser | null;
   loading: boolean;
-  login: (token: string, user: User) => void;
-  logout: () => void;
-  updateUser: (user: User) => void;
+  logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
 
@@ -30,69 +33,60 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const savedToken = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-
-    if (savedToken && savedUser) {
-      setToken(savedToken);
-      setUser(JSON.parse(savedUser));
-      
-      // Verify token and get fresh profile
-      api.auth.getProfile().then(async (res) => {
-        if (res.ok) {
-          const freshUser = await res.json();
-          setUser(freshUser);
-          localStorage.setItem('user', JSON.stringify(freshUser));
-        } else if (res.status === 401) {
-          logout();
-        }
-      }).catch(() => {
-        // If offline or error, keep the saved user for now
-      }).finally(() => {
-        setLoading(false);
-      });
-    } else {
-      setLoading(false);
+  const fetchUserProfile = async (uid: string) => {
+    try {
+      const userDoc = await getDoc(doc(db, 'users', uid));
+      if (userDoc.exists()) {
+        setUser(userDoc.data() as User);
+      } else {
+        // If user document doesn't exist in Firestore but exists in Auth,
+        // we might need to create it or handle it.
+        // For now, just set a basic user object.
+        const basicUser: User = {
+          uid,
+          email: auth.currentUser?.email || null,
+          firstName: '',
+          lastName: '',
+          phone: '',
+          isPremium: false,
+          role: 'user'
+        };
+        setUser(basicUser);
+      }
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
     }
+  };
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (fUser) => {
+      setFirebaseUser(fUser);
+      if (fUser) {
+        await fetchUserProfile(fUser.uid);
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  const login = (newToken: string, newUser: User) => {
-    setToken(newToken);
-    setUser(newUser);
-    localStorage.setItem('token', newToken);
-    localStorage.setItem('user', JSON.stringify(newUser));
-  };
-
-  const logout = () => {
-    setToken(null);
-    setUser(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-  };
-
-  const updateUser = (newUser: User) => {
-    setUser(newUser);
-    localStorage.setItem('user', JSON.stringify(newUser));
+  const logout = async () => {
+    await auth.signOut();
   };
 
   const refreshProfile = async () => {
-    try {
-      const res = await api.auth.getProfile();
-      if (res.ok) {
-        const freshUser = await res.json();
-        updateUser(freshUser);
-      }
-    } catch (err) {
-      console.error("Failed to refresh profile:", err);
+    if (firebaseUser) {
+      await fetchUserProfile(firebaseUser.uid);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout, updateUser, refreshProfile }}>
+    <AuthContext.Provider value={{ user, firebaseUser, loading, logout, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
-import { api } from '../services/api';
-import { useAuth } from '../context/AuthContext';
+import { auth, db } from '../firebase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 
 export default function Register() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const location = useLocation();
-  const { login } = useAuth();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -33,24 +33,32 @@ export default function Register() {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await api.auth.register(formData);
-      const data = await response.json() as any;
-      if (response.ok) {
-        // Auto login after register
-        const loginRes = await api.auth.login({ email: formData.email, password: formData.password });
-        const loginData = await loginRes.json() as any;
-        if (loginRes.ok) {
-          login(loginData.token, loginData.user);
-          navigate('/dashboard');
-        } else {
-          navigate('/login');
-        }
-      } else {
-        setError(data.message || 'Erreur lors de l\'inscription');
-      }
-    } catch (error) {
+      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+      const user = userCredential.user;
+
+      // Save user profile to Firestore
+      await setDoc(doc(db, 'users', user.uid), {
+        uid: user.uid,
+        email: formData.email,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        phone: formData.phone,
+        referredBy: formData.referredBy,
+        isPremium: false,
+        role: 'user',
+        createdAt: new Date().toISOString()
+      });
+
+      navigate('/dashboard');
+    } catch (error: any) {
       console.error(error);
-      setError('Une erreur réseau est survenue. Veuillez réessayer.');
+      if (error.code === 'auth/email-already-in-use') {
+        setError('Cet email est déjà utilisé.');
+      } else if (error.code === 'auth/weak-password') {
+        setError('Le mot de passe est trop faible.');
+      } else {
+        setError('Une erreur est survenue lors de l\'inscription.');
+      }
     } finally {
       setIsLoading(false);
     }

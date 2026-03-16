@@ -7,7 +7,8 @@ import {
   Mail, Phone, Save, Clock, HelpCircle, ArrowRight,
   MessageSquare, Receipt, Download, Eye, Bell, Users
 } from 'lucide-react';
-import { api } from '../services/api';
+import { db } from '../firebase';
+import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, addDoc, getDoc } from 'firebase/firestore';
 import { storage } from '../utils/storage';
 import { InvoicePDF } from '../components/InvoicePDF';
 import { Invoice, Message } from '../types';
@@ -49,8 +50,7 @@ export default function Dashboard() {
   const [referrals, setReferrals] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [activeTab, setActiveTab] = useState<'cvs' | 'letters' | 'payments' | 'messages' | 'invoices' | 'referral'>('cvs');
-  const [userData, setUserData] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'cvs' | 'letters' | 'payments' | 'messages' | 'invoices' | 'referral' | 'profile'>('cvs');
   const [payments, setPayments] = useState<any[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -62,7 +62,7 @@ export default function Dashboard() {
     phone: ''
   });
   const navigate = useNavigate();
-  const { user, updateUser } = useAuth();
+  const { user, firebaseUser, refreshProfile } = useAuth();
 
   useEffect(() => {
     if (user) {
@@ -71,76 +71,33 @@ export default function Dashboard() {
         lastName: user.lastName || '',
         phone: user.phone || ''
       });
-      fetchData();
+      
+      // Real-time listener for CVs
+      const q = query(collection(db, 'cvs'), where('userId', '==', user.uid));
+      const unsubscribeCvs = onSnapshot(q, (snapshot) => {
+        const cvsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setCvs(cvsData);
+        setIsLoading(false);
+      }, (error) => {
+        console.error("Error fetching CVs:", error);
+        setIsLoading(false);
+      });
+
+      return () => unsubscribeCvs();
     }
   }, [user]);
 
-  const fetchData = async () => {
-    try {
-      const [cvsRes, lettersRes, paymentsRes, profileRes, invoicesRes, messagesRes, referralsRes] = await Promise.all([
-        api.cvs.list(),
-        api.letters.list(),
-        api.payments.history(),
-        api.auth.getProfile(),
-        api.invoices.list(),
-        api.messages.list(),
-        api.auth.getReferrals()
-      ]);
-
-      if (!cvsRes.ok || !lettersRes.ok || !paymentsRes.ok || !profileRes.ok || !invoicesRes.ok || !messagesRes.ok || !referralsRes.ok) {
-        throw new Error('Failed to fetch dashboard data');
-      }
-
-      const [cvsData, lettersData, paymentsData, profileData, invoicesData, messagesData, referralsData] = await Promise.all([
-        cvsRes.json(), 
-        lettersRes.json(),
-        paymentsRes.json(),
-        profileRes.json(),
-        invoicesRes.json(),
-        messagesRes.json(),
-        referralsRes.json()
-      ]);
-      
-      setCvs(cvsData);
-      setLetters(lettersData);
-      setPayments(paymentsData);
-      setUserData(profileData);
-      setInvoices(invoicesData);
-      setMessages(messagesData);
-      setReferrals(referralsData);
-      if (Array.isArray(messagesData)) {
-        setUnreadCount(messagesData.filter((m: Message) => !m.isRead).length);
-      }
-      
-      // Update auth context with fresh user data
-      updateUser(profileData);
-      setProfileData({
-        firstName: profileData.firstName || '',
-        lastName: profileData.lastName || '',
-        phone: profileData.phone || ''
-      });
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) return;
     setIsSavingProfile(true);
     try {
-      const res = await api.auth.updateProfile(profileData);
-      if (res.ok) {
-        const updatedUser = await res.json();
-        updateUser(updatedUser);
-        alert("Profil mis à jour !");
-      } else {
-        alert("Erreur lors de la mise à jour du profil.");
-      }
+      await updateDoc(doc(db, 'users', user.uid), profileData);
+      await refreshProfile();
+      alert("Profil mis à jour !");
     } catch (error) {
       console.error(error);
-      alert("Une erreur est survenue.");
+      alert("Une erreur est survenue lors de la mise à jour du profil.");
     } finally {
       setIsSavingProfile(false);
     }
@@ -149,31 +106,35 @@ export default function Dashboard() {
   const deleteCv = async (id: string) => {
     if (!confirm("Supprimer ce CV ?")) return;
     try {
-      const res = await api.cvs.delete(id);
-      if (res.ok) {
-        setCvs(prev => prev.filter(cv => String(cv.id) !== String(id)));
-        alert("CV supprimé avec succès");
-      } else {
-        const errorData = await res.json().catch(() => ({}));
-        alert(`Erreur lors de la suppression du CV: ${errorData.error || 'Erreur inconnue'}`);
-      }
+      await deleteDoc(doc(db, 'cvs', id));
+      alert("CV supprimé avec succès");
     } catch (error) {
       console.error(error);
       alert("Une erreur est survenue lors de la suppression");
     }
   };
 
+  const saveTestCv = async () => {
+    if (!user) return;
+    try {
+      await addDoc(collection(db, 'cvs'), {
+        userId: user.uid,
+        title: "Mon CV Test",
+        content: "Contenu du CV test",
+        createdAt: new Date().toISOString()
+      });
+      alert("CV test enregistré avec succès !");
+    } catch (error) {
+      console.error("Error saving CV:", error);
+      alert("Erreur lors de l'enregistrement du CV.");
+    }
+  };
+
   const deleteLetter = async (id: string) => {
     if (!confirm("Supprimer cette lettre ?")) return;
     try {
-      const res = await api.letters.delete(id);
-      if (res.ok) {
-        setLetters(prev => prev.filter(l => String(l.id) !== String(id)));
-        alert("Lettre supprimée avec succès");
-      } else {
-        const errorData = await res.json().catch(() => ({}));
-        alert(`Erreur lors de la suppression: ${errorData.error || 'Erreur inconnue'}`);
-      }
+      await deleteDoc(doc(db, 'letters', id));
+      alert("Lettre supprimée avec succès");
     } catch (error) {
       console.error(error);
       alert("Une erreur est survenue lors de la suppression");
@@ -187,7 +148,7 @@ export default function Dashboard() {
 
   const handleMarkAsRead = async (id: number) => {
     try {
-      await api.messages.markAsRead(id);
+      // await api.messages.markAsRead(id);
       setMessages(messages.map(m => m.id === id ? { ...m, isRead: true } : m));
       setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (err) {
@@ -200,10 +161,17 @@ export default function Dashboard() {
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-6">
           <div>
-            <h1 className="text-4xl font-bold text-slate-900 mb-2">Bonjour, {userData?.firstName}</h1>
+            <h1 className="text-4xl font-bold text-slate-900 mb-2">Bonjour, {user?.firstName}</h1>
             <p className="text-slate-600">Gérez vos CV et lettres de motivation ici.</p>
           </div>
           <div className="flex space-x-4">
+            <button 
+              onClick={saveTestCv}
+              className="bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold flex items-center space-x-2 hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
+            >
+              <Save size={20} />
+              <span>Enregistrer CV Test</span>
+            </button>
             <button 
               onClick={() => {
                 storage.clearCV();
@@ -278,12 +246,12 @@ export default function Dashboard() {
                 <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 mb-4">
                   <UserIcon size={40} />
                 </div>
-                <h3 className="font-bold text-slate-900">{userData?.firstName} {userData?.lastName}</h3>
-                <p className="text-sm text-slate-500">{userData?.email}</p>
-                {(userData?.modernExpiresAt && new Date(userData.modernExpiresAt) > new Date()) || 
-                 (userData?.classicExpiresAt && new Date(userData.classicExpiresAt) > new Date()) || 
-                 (userData?.creativeExpiresAt && new Date(userData.creativeExpiresAt) > new Date()) || 
-                 userData?.isPremium ? (
+                <h3 className="font-bold text-slate-900">{user?.firstName} {user?.lastName}</h3>
+                <p className="text-sm text-slate-500">{user?.email}</p>
+                {(user?.modernExpiresAt && new Date(user.modernExpiresAt) > new Date()) || 
+                 (user?.classicExpiresAt && new Date(user.classicExpiresAt) > new Date()) || 
+                 (user?.creativeExpiresAt && new Date(user.creativeExpiresAt) > new Date()) || 
+                 user?.isPremium ? (
                   <span className="mt-2 px-3 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase rounded-full">Premium Pro Actif</span>
                 ) : (
                   <span className="mt-2 px-3 py-1 bg-slate-100 text-slate-500 text-[10px] font-black uppercase rounded-full">Compte Gratuit</span>
@@ -292,7 +260,7 @@ export default function Dashboard() {
               
               <div className="pt-6 border-t border-slate-100 space-y-3">
                 {['modern', 'classic', 'creative'].map((type) => {
-                  const expiry = userData?.[`${type}ExpiresAt`];
+                  const expiry = (user as any)?.[`${type}ExpiresAt`];
                   const isActive = expiry && new Date(expiry) > new Date();
                   
                   return (
@@ -320,7 +288,7 @@ export default function Dashboard() {
                   );
                 })}
                 
-                {!userData?.isPremium && (
+                {!user?.isPremium && (
                   <Link to="/premium" className="p-4 rounded-2xl flex items-center justify-between bg-primary text-white hover:bg-primary-dark transition-all shadow-lg shadow-primary/20">
                     <div className="flex items-center space-x-2">
                       <Zap size={18} />
@@ -373,12 +341,12 @@ export default function Dashboard() {
                   <div className="flex flex-col sm:flex-row gap-4">
                     <input 
                       readOnly 
-                      value={`${window.location.origin}/register?ref=${userData?.id}`}
+                      value={`${window.location.origin}/register?ref=${user?.uid}`}
                       className="flex-1 bg-black/20 border border-white/10 rounded-xl px-4 py-3 font-mono text-sm outline-none"
                     />
                     <button 
                       onClick={() => {
-                        navigator.clipboard.writeText(`${window.location.origin}/register?ref=${userData?.id}`);
+                        navigator.clipboard.writeText(`${window.location.origin}/register?ref=${user?.uid}`);
                         alert("Lien copié !");
                       }}
                       className="bg-primary text-white px-8 py-3 rounded-xl font-bold hover:bg-primary-dark transition-all"
@@ -427,11 +395,11 @@ export default function Dashboard() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 text-center">
                     <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">CV Restants</p>
-                    <p className="text-3xl font-black text-slate-900">{userData?.cvGenerationsRemaining || 0}</p>
+                    <p className="text-3xl font-black text-slate-900">{user?.cvGenerationsRemaining || 0}</p>
                   </div>
                   <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 text-center">
                     <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Lettres Restantes</p>
-                    <p className="text-3xl font-black text-slate-900">{userData?.letterGenerationsRemaining || 0}</p>
+                    <p className="text-3xl font-black text-slate-900">{user?.letterGenerationsRemaining || 0}</p>
                   </div>
                 </div>
                 <div className="mt-6 p-4 bg-amber-50 border border-amber-100 rounded-2xl">

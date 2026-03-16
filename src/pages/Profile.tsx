@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { User, Mail, Phone, MapPin, Camera, Save, Loader2, AlertCircle, CheckCircle2, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../services/api';
+import { db } from '../firebase';
+import { doc, updateDoc } from 'firebase/firestore';
 
 export default function Profile() {
   const { user, refreshProfile } = useAuth();
@@ -19,21 +20,18 @@ export default function Profile() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) return;
     setIsLoading(true);
     setError('');
     setSuccess('');
 
     try {
-      const res = await api.profile.update(formData);
-      if (res.ok) {
-        await refreshProfile();
-        setSuccess('Profil mis à jour avec succès !');
-      } else {
-        const data = await res.json();
-        setError(data.error || 'Une erreur est survenue');
-      }
+      await updateDoc(doc(db, 'users', user.uid), formData);
+      await refreshProfile();
+      setSuccess('Profil mis à jour avec succès !');
     } catch (err) {
-      setError('Erreur de connexion au serveur');
+      console.error(err);
+      setError('Erreur lors de la mise à jour du profil');
     } finally {
       setIsLoading(false);
     }

@@ -49,6 +49,15 @@ function handleFirestoreError(error: any, operationType: OperationType, path: st
   throw new Error(JSON.stringify(errInfo));
 }
 
+async function safeJson(response: Response) {
+  const contentType = response.headers.get("content-type");
+  if (contentType && contentType.includes("application/json")) {
+    return response.json();
+  }
+  const text = await response.text();
+  return { error: `Réponse non-JSON reçue (${response.status}): ${text.substring(0, 100)}...` };
+}
+
 // Client-side "Backend" using Firestore
 // This replaces all /api calls for a purely static deployment
 
@@ -68,7 +77,11 @@ export const api = {
   },
   public: {
     getStats: async () => {
-      return fetch('/api/statistiques');
+      const res = await fetch('/api/statistiques');
+      return {
+        ok: res.ok,
+        json: async () => safeJson(res)
+      } as any;
     }
   },
   auth: {
@@ -113,6 +126,20 @@ export const api = {
       if (!user) return { ok: false } as any;
       await updateDoc(doc(db, 'users', user.uid), { photoURL: base64Photo });
       return { ok: true } as any;
+    },
+    consumeCredit: async (type: 'cv' | 'letter' | 'analysis' | 'download') => {
+      const user = auth.currentUser;
+      if (!user) return { ok: false } as any;
+      
+      const res = await fetch('/api/ia/consume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, userId: user.uid })
+      });
+      return {
+        ok: res.ok,
+        json: async () => safeJson(res)
+      } as any;
     }
   },
   cvs: {
@@ -205,7 +232,7 @@ export const api = {
       if (!user) return { ok: false } as any;
       const token = await user.getIdToken();
       
-      return fetch('/api/payment/request', {
+      const res = await fetch('/api/payment/request', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -217,6 +244,10 @@ export const api = {
           userEmail: user.email
         })
       });
+      return {
+        ok: res.ok,
+        json: async () => safeJson(res)
+      } as any;
     }
   },
   invoices: {
@@ -230,15 +261,19 @@ export const api = {
     }
   },
   ia: {
-    consume: async (type: 'cv' | 'letter' | 'optimization' | 'analysis') => {
+    consume: async (type: 'cv' | 'letter' | 'analysis') => {
       const user = auth.currentUser;
       if (!user) return { ok: false } as any;
       
-      return fetch('/api/ia/consume', {
+      const res = await fetch('/api/ia/consume', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type, userId: user.uid })
       });
+      return {
+        ok: res.ok,
+        json: async () => safeJson(res)
+      } as any;
     }
   },
   messages: {
@@ -314,11 +349,15 @@ export const api = {
       if (!user) throw new Error('Non authentifié');
       const token = await user.getIdToken();
       
-      return fetch('/api/admin/stats', {
+      const res = await fetch('/api/admin/stats', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
+      return {
+        ok: res.ok,
+        json: async () => safeJson(res)
+      } as any;
     },
     getRevenueStats: async () => {
       return { 
@@ -452,7 +491,7 @@ export const api = {
         
         const token = await user.getIdToken();
         
-        const response = await fetch('/api/admin/confirm-payment', {
+        const res = await fetch('/api/admin/confirm-payment', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -461,12 +500,10 @@ export const api = {
           body: JSON.stringify({ paymentId: String(id) })
         });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Erreur lors de la confirmation');
-        }
-
-        return { ok: true, json: async () => await response.json() } as any;
+        return {
+          ok: res.ok,
+          json: async () => safeJson(res)
+        } as any;
       } catch (error) {
         console.error('Confirm payment error:', error);
         throw error;

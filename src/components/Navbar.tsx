@@ -37,18 +37,16 @@ export default function Navbar() {
       navLinks.push({ name: 'Mon Profil', path: '/profile', icon: User });
     } else {
       navLinks.push({ name: 'Mes CV', path: '/dashboard', icon: FileText });
-      navLinks.push({ name: 'Optimisation CV', path: '/optimization', icon: Zap });
+      navLinks.push({ name: 'Analyse ATS', path: '/dashboard?tab=ats', icon: Zap });
       navLinks.push({ name: 'Lettre de Motivation', path: '/cover-letter', icon: FileText });
-      navLinks.push({ name: 'Analyse ATS', path: '/ats-analysis', icon: Search });
       navLinks.push({ name: 'Mon Profil', path: '/profile', icon: User });
-      navLinks.push({ name: 'Premium', path: '/premium', icon: CreditCard });
+      navLinks.push({ name: 'Tarifs', path: '/pricing', icon: CreditCard });
     }
   } else {
     navLinks.push({ name: 'Créer CV', path: '/create-cv', icon: FileText });
-    navLinks.push({ name: 'Optimisation CV', path: '/optimization', icon: Zap });
+    navLinks.push({ name: 'Analyse ATS', path: '/login', icon: Zap });
     navLinks.push({ name: 'Lettre de Motivation', path: '/cover-letter', icon: FileText });
-    navLinks.push({ name: 'Analyse ATS', path: '/ats-analysis', icon: Search });
-    navLinks.push({ name: 'Premium', path: '/premium', icon: CreditCard });
+    navLinks.push({ name: 'Tarifs', path: '/pricing', icon: CreditCard });
   }
 
   navLinks.push({ name: 'Aide & FAQ', path: '/help', icon: HelpCircle });
@@ -65,8 +63,6 @@ export default function Navbar() {
                 <span className="text-lg font-black tracking-tight text-slate-900 leading-none">CRYNANCE <span className="text-primary">IA CV PRO 2</span></span>
                 {user?.role === 'admin' ? (
                   <span className="text-[10px] font-black text-primary uppercase tracking-tighter">Mode Administrateur</span>
-                ) : user?.isPremium ? (
-                  <span className="text-[10px] font-black text-primary uppercase tracking-tighter">Premium Pro</span>
                 ) : null}
               </div>
             </Link>

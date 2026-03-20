@@ -407,11 +407,11 @@ export default function AdminDashboard() {
                 <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Lettres Générées</p>
                 <p className="text-3xl font-black text-slate-900">{iaStats?.totalLetters || 0}</p>
               </div>
-              <div className="bg-emerald-50 p-6 rounded-3xl shadow-xl border border-emerald-100">
-                <p className="text-xs font-black text-emerald-600 uppercase tracking-widest mb-1">Score ATS Moyen</p>
-                <p className="text-3xl font-black text-emerald-900">{iaStats?.avgAtsScore || 0}%</p>
+              <div className="bg-white p-6 rounded-3xl shadow-xl border border-slate-100">
+                <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Score ATS Moyen</p>
+                <p className="text-3xl font-black text-slate-900">{iaStats?.avgAtsScore || 0}%</p>
               </div>
-              <div className="bg-blue-50 p-6 rounded-3xl shadow-xl border border-blue-100">
+              <div className="bg-blue-50 p-6 rounded-3xl shadow-xl border-blue-100">
                 <p className="text-xs font-black text-blue-600 uppercase tracking-widest mb-1">CV Optimisés</p>
                 <p className="text-3xl font-black text-blue-900">{iaStats?.optimizedCvsCount || 0}</p>
               </div>
@@ -796,10 +796,9 @@ export default function AdminDashboard() {
                         <td className="p-6">
                           <div className="flex flex-wrap gap-1">
                             {u.isPremium && <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-md text-[9px] font-black uppercase">Full</span>}
-                            {u.hasOptimizationAccess && <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-md text-[9px] font-black uppercase">Opti</span>}
+                            {u.hasAnalysisAccess && <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-md text-[9px] font-black uppercase">ATS</span>}
                             {u.hasLetterAccess && <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-md text-[9px] font-black uppercase">Lettre</span>}
-                            {u.hasAnalysisAccess && <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-md text-[9px] font-black uppercase">ATS</span>}
-                            {!u.isPremium && !u.hasOptimizationAccess && !u.hasLetterAccess && !u.hasAnalysisAccess && <span className="text-[9px] text-slate-400 font-bold italic">Aucun</span>}
+                            {!u.isPremium && !u.hasAnalysisAccess && !u.hasLetterAccess && <span className="text-[9px] text-slate-400 font-bold italic">Aucun</span>}
                           </div>
                         </td>
                         <td className="p-6">

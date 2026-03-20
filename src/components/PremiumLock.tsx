@@ -6,7 +6,7 @@ import { api } from '../services/api';
 
 interface PremiumLockProps {
   children: React.ReactNode;
-  feature: 'optimization' | 'letter' | 'analysis';
+  feature: 'letter' | 'analysis';
   title: string;
   description: string;
   price: number;
@@ -22,8 +22,6 @@ export default function PremiumLock({ children, feature, title, description, pri
     if (user.role === 'admin') return true;
     
     switch (feature) {
-      case 'optimization':
-        return user.hasOptimizationAccess || user.isPremium;
       case 'letter':
         return user.hasLetterAccess || user.isPremium;
       case 'analysis':

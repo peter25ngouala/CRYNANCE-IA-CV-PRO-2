@@ -147,19 +147,43 @@ export default function CVPreview() {
     return () => window.removeEventListener('resize', handleResize);
   }, [cvData]);
 
-  useEffect(() => {
-    const fetchProfile = async () => {
+  const canDownload = () => {
+    if (!currentUser) return false;
+    if (currentUser.role === 'admin' || currentUser.isPremium) return true;
+    
+    // Check for FLASH ATS specific limit
+    if (currentUser.flashAtsExpiresAt && new Date(currentUser.flashAtsExpiresAt) > new Date()) {
+      return (currentUser.cvDownloadsRemaining || 0) > 0;
+    }
+    
+    return true; // Other plans have their own access control via isSubscribed
+  };
+
+  const consumeDownload = async () => {
+    if (currentUser?.flashAtsExpiresAt && new Date(currentUser.flashAtsExpiresAt) > new Date()) {
       try {
-        const res = await api.auth.getProfile();
-        if (res.ok) {
-          const data = await res.json();
-          setCurrentUser(data);
-          localStorage.setItem('user', JSON.stringify(data));
-        }
+        await api.auth.consumeCredit('download');
+        await fetchProfile();
       } catch (err) {
-        console.error(err);
+        console.error("Error consuming download credit:", err);
       }
-    };
+    }
+  };
+
+  const fetchProfile = async () => {
+    try {
+      const res = await api.auth.getProfile();
+      if (res.ok) {
+        const data = await res.json();
+        setCurrentUser(data);
+        localStorage.setItem('user', JSON.stringify(data));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
     fetchProfile();
   }, []);
 
@@ -170,6 +194,13 @@ export default function CVPreview() {
     // Check for Full Access (Modern)
     if (currentUser.modernExpiresAt && new Date(currentUser.modernExpiresAt) > new Date()) {
       return { active: true, expired: false };
+    }
+
+    // Check for FLASH ATS
+    if (currentUser.flashAtsExpiresAt && new Date(currentUser.flashAtsExpiresAt) > new Date()) {
+      if (template === 'modern' || template === 'blue' || template === 'dark-minimal') {
+        return { active: true, expired: false };
+      }
     }
 
     let expiry: string | null = null;
@@ -323,12 +354,17 @@ export default function CVPreview() {
     }
   };
 
-  const printCV = () => {
+  const printCV = async () => {
     if (!cvData) return;
     if (!isSubscribed(cvData.template)) {
       setShowPayModal(true);
       return;
     }
+    if (!canDownload()) {
+      alert("Vous avez déjà utilisé votre unique téléchargement inclus dans le pack FLASH ATS.");
+      return;
+    }
+    await consumeDownload();
     window.print();
   };
 
@@ -340,8 +376,14 @@ export default function CVPreview() {
       return;
     }
 
+    if (!canDownload()) {
+      alert("Vous avez déjà utilisé votre unique téléchargement inclus dans le pack FLASH ATS.");
+      return;
+    }
+
     setIsExporting(true);
     try {
+      await consumeDownload();
       const element = cvRef.current;
       
       // Force A4 dimensions for capture
@@ -426,6 +468,13 @@ export default function CVPreview() {
       setShowPayModal(true);
       return;
     }
+
+    if (!canDownload()) {
+      alert("Vous avez déjà utilisé votre unique téléchargement inclus dans le pack FLASH ATS.");
+      return;
+    }
+
+    await consumeDownload();
 
     const sections = cvData.sections!;
     

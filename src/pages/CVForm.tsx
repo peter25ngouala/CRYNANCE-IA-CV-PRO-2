@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Trash2, ChevronRight, ChevronLeft, Sparkles, Image as ImageIcon, Loader2, CheckCircle2, X, Upload, User as UserIcon, Zap } from 'lucide-react';
 import { useEffect } from 'react';
 import { CVData } from '../types';
-import { generateProfessionalCV, optimizeCVForJobOffer } from '../services/geminiService';
+import { generateProfessionalCV } from '../services/geminiService';
 import PremiumLock from '../components/PremiumLock';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
@@ -17,8 +17,6 @@ export default function CVForm() {
   const navigate = useNavigate();
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const { user, refreshProfile } = useAuth();
-  const [jobOffer, setJobOffer] = useState('');
-  const [isOptimizing, setIsOptimizing] = useState(false);
 
   const { register, control, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<CVData>({
     defaultValues: {
@@ -65,41 +63,6 @@ export default function CVForm() {
       console.log("Current form errors:", errors);
     }
   }, [errors]);
-
-  const handleOptimize = async () => {
-    if (!jobOffer.trim()) {
-      alert("Veuillez coller une offre d'emploi.");
-      return;
-    }
-
-    setIsOptimizing(true);
-    try {
-      // Consommer un crédit d'optimisation
-      const consumeRes = await api.ia.consume('optimization');
-      if (!consumeRes.ok) {
-        const err = await consumeRes.json();
-        alert(err.error || "Vous n'avez plus de crédits d'optimisation.");
-        navigate('/premium');
-        return;
-      }
-
-      await refreshProfile();
-
-      const currentData = watch();
-      const optimizedData = await optimizeCVForJobOffer(currentData, jobOffer);
-      
-      // Update form with optimized data
-      reset(optimizedData);
-      
-      alert("Votre CV a été optimisé avec succès pour cette offre !");
-      setStep(5); // Go to preview/final step
-    } catch (error: any) {
-      console.error("Optimization error:", error);
-      alert("Erreur lors de l'optimisation : " + error.message);
-    } finally {
-      setIsOptimizing(false);
-    }
-  };
 
   const onSubmit = async (data: CVData) => {
     console.log(">>> onSubmit CALLED with data:", data);
@@ -230,8 +193,7 @@ export default function CVForm() {
     { title: "Expériences", id: 3 },
     { title: "Formation", id: 4 },
     { title: "Qualités & Intérêts", id: 5 },
-    { title: "Optimisation IA", id: 6 },
-    { title: "Options", id: 7 },
+    { title: "Options", id: 6 },
   ];
 
   return (
@@ -540,67 +502,6 @@ export default function CVForm() {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
-                className="space-y-6"
-              >
-                <PremiumLock 
-                  feature="optimization"
-                  title="Optimisation CV pour offre d'emploi"
-                  description="Notre IA adaptera votre CV en mettant en avant les compétences et mots-clés recherchés par les recruteurs."
-                  price={500}
-                >
-                  <div className="space-y-4">
-                    <div className="bg-primary/5 p-6 rounded-2xl border border-primary/10">
-                      <div className="flex items-start space-x-3">
-                        <Zap className="text-primary mt-1" size={24} />
-                        <div>
-                          <h3 className="text-lg font-bold text-slate-900">Optimisation Intelligente</h3>
-                          <p className="text-sm text-slate-600 mt-1">
-                            Collez l'offre d'emploi ci-dessous. Notre IA adaptera votre CV en mettant en avant les compétences et mots-clés recherchés par les recruteurs.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-semibold text-slate-700">Offre d'emploi (Description)</label>
-                      <textarea 
-                        value={jobOffer}
-                        onChange={(e) => setJobOffer(e.target.value)}
-                        rows={8} 
-                        className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none transition-all" 
-                        placeholder="Copiez et collez ici le texte de l'offre d'emploi..." 
-                      />
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleOptimize}
-                      disabled={isOptimizing || !jobOffer.trim()}
-                      className="w-full bg-primary text-white py-4 rounded-xl font-bold flex items-center justify-center space-x-2 hover:bg-primary-dark transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
-                    >
-                      {isOptimizing ? (
-                        <>
-                          <Loader2 className="animate-spin" size={20} />
-                          <span>Optimisation en cours...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles size={20} />
-                          <span>Optimiser mon CV pour cette offre</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </PremiumLock>
-              </motion.div>
-            )}
-
-            {step === 7 && (
-              <motion.div
-                key="step7"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
                 className="space-y-8"
               >
                 <div className="grid md:grid-cols-1 gap-8">
@@ -610,9 +511,18 @@ export default function CVForm() {
                       <option value="modern">Moderne (Élégant)</option>
                       <option value="blue">Moderne (Pro Bleu)</option>
                       <option value="dark-minimal">Moderne (Épuré)</option>
-                      <option value="classic">Classique (Traditionnel)</option>
-                      <option value="creative">Créatif (Original)</option>
+                      {(!user?.flashAtsExpiresAt || new Date(user.flashAtsExpiresAt) <= new Date() || user?.isPremium || user?.role === 'admin') && (
+                        <>
+                          <option value="classic">Classique (Traditionnel)</option>
+                          <option value="creative">Créatif (Original)</option>
+                        </>
+                      )}
                     </select>
+                    {user?.flashAtsExpiresAt && new Date(user.flashAtsExpiresAt) > new Date() && !(user?.isPremium || user?.role === 'admin') && (
+                      <p className="text-xs text-amber-600 font-bold">
+                        ℹ️ Votre pack FLASH ATS vous donne accès aux styles Élégant, Pro Bleu et Épuré.
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -645,7 +555,7 @@ export default function CVForm() {
                 </button>
               ) : <div />}
 
-              {step < 7 ? (
+              {step < 6 ? (
                 <button type="button" onClick={nextStep} className="bg-primary text-white px-8 py-3 rounded-xl font-bold flex items-center space-x-2 hover:bg-primary-dark transition-all shadow-lg shadow-primary/20">
                   <span>Suivant</span> <ChevronRight size={20} />
                 </button>

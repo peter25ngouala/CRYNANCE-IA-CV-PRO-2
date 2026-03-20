@@ -8,6 +8,16 @@
         "uid": { "type": "string", "description": "Firebase Auth UID" },
         "email": { "type": "string", "format": "email" },
         "displayName": { "type": "string" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "premium", "admin"] },
+        "isPremium": { "type": "boolean" },
+        "cvGenerationsRemaining": { "type": "integer" },
+        "letterGenerationsRemaining": { "type": "integer" },
+        "analysisGenerationsRemaining": { "type": "integer" },
+        "hasLetterAccess": { "type": "boolean" },
+        "hasAnalysisAccess": { "type": "boolean" },
+        "flashAtsExpiresAt": { "type": "string", "format": "date-time" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "email"]

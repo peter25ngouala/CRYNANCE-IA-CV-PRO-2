@@ -5,7 +5,7 @@ const getApiKey = () => {
   const viteKey = import.meta.env.VITE_GEMINI_API_KEY;
   let processKey = "";
   try {
-    processKey = process.env.GEMINI_API_KEY || "";
+    processKey = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "";
   } catch (e) {
     // process is not defined
   }
@@ -249,94 +249,6 @@ export const modifyCVWithAI = async (data: CVData, instruction: string): Promise
   } catch (error: any) {
     console.error("Gemini CV Modification Error:", error);
     throw new Error(error.message || "Erreur lors de la modification du CV");
-  }
-};
-
-export const optimizeCVForJobOffer = async (data: CVData, jobOffer: string): Promise<CVData> => {
-  const ai = getAI();
-  if (!ai) {
-    throw new Error("Clé API manquante ou invalide");
-  }
-  
-  const modelName = "gemini-3-flash-preview";
-  
-  const dataWithoutPhoto = { ...data };
-  delete dataWithoutPhoto.photo;
-
-  const prompt = `Tu es un expert en recrutement et optimisation ATS. Ta mission est d'adapter ce CV spécifiquement pour l'offre d'emploi suivante.
-  
-  OFFRE D'EMPLOI :
-  "${jobOffer}"
-  
-  RÈGLES D'OPTIMISATION :
-  1. MOTS-CLÉS ATS : Identifie les mots-clés, compétences techniques et soft skills essentiels dans l'offre d'emploi et intègre-les naturellement dans le CV.
-  2. PROFIL : Réécris l'accroche pour qu'elle réponde directement aux besoins de l'entreprise mentionnés dans l'offre.
-  3. COMPÉTENCES : Réorganise et mets en avant les compétences les plus demandées par l'offre.
-  4. EXPÉRIENCES : Reformule les descriptions pour mettre l'accent sur les réalisations qui prouvent que le candidat possède les compétences requises.
-  5. CONCISION : Garde le CV sur une seule page.
-  6. RÉPONSE : Retourne l'objet CV complet mis à jour en JSON valide.
-  
-  CV ACTUEL : ${JSON.stringify(dataWithoutPhoto)}`;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: prompt,
-      config: {
-        systemInstruction: "Tu es un expert en optimisation de CV pour les systèmes ATS. Tu adaptes le CV à une offre d'emploi spécifique et tu retournes l'objet complet en JSON valide.",
-        responseMimeType: "application/json",
-        maxOutputTokens: 8192,
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            profile: { type: Type.STRING },
-            skills: { type: Type.ARRAY, items: { type: Type.STRING } },
-            itSkills: { type: Type.ARRAY, items: { type: Type.STRING } },
-            experiences: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  company: { type: Type.STRING },
-                  position: { type: Type.STRING },
-                  startDate: { type: Type.STRING },
-                  endDate: { type: Type.STRING },
-                  description: { type: Type.STRING },
-                },
-                required: ["company", "position", "startDate", "endDate", "description"]
-              }
-            },
-            education: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  school: { type: Type.STRING },
-                  degree: { type: Type.STRING },
-                  year: { type: Type.STRING },
-                },
-                required: ["school", "degree", "year"]
-              }
-            },
-            qualities: { type: Type.ARRAY, items: { type: Type.STRING } },
-            flaws: { type: Type.ARRAY, items: { type: Type.STRING } },
-            interests: { type: Type.ARRAY, items: { type: Type.STRING } },
-            jobTitle: { type: Type.STRING },
-          },
-          required: ["profile", "skills", "itSkills", "experiences", "education", "qualities", "flaws", "interests"]
-        }
-      }
-    });
-
-    if (!response || !response.text) {
-      throw new Error("Réponse vide de l'IA");
-    }
-
-    const generated = safeJsonParse(response.text);
-    return { ...data, ...generated };
-  } catch (error: any) {
-    console.error("Gemini CV Optimization Error:", error);
-    throw new Error(error.message || "Erreur lors de l'optimisation du CV");
   }
 };
 

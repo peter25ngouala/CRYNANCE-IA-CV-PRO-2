@@ -41,23 +41,26 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() &&
         (
-          request.auth.uid == "4cCpVwdbWISByTyK7Fl4X8uzZly1" ||
-          request.auth.token.email == "peter25ngouala@gmail.com" ||
-          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'admin')
+          request.auth.token.email == "peter25ngouala@gmail.com"
         );
     }
 
-    function isRecent(timestamp) {
-      return timestamp is string || (timestamp is timestamp && 
-             timestamp > request.time - duration.value(5, 'm') &&
-             timestamp < request.time + duration.value(5, 'm'));
+    function isRecent(ts) {
+      return ts is timestamp && 
+             ts > request.time - duration.value(300, 's') &&
+             ts < request.time + duration.value(300, 's');
     }
 
     function isValidUser(data) {
       return data.uid is string &&
              data.email is string &&
-             data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+             data.email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$") &&
+             (!('role' in data) || data.role in ['user', 'admin']) &&
+             (!('cvGenerationsRemaining' in data) || data.cvGenerationsRemaining is int) &&
+             (!('letterGenerationsRemaining' in data) || data.letterGenerationsRemaining is int) &&
+             (!('analysisGenerationsRemaining' in data) || data.analysisGenerationsRemaining is int) &&
+             (!('cvDownloadsRemaining' in data) || data.cvDownloadsRemaining is int) &&
+             (!('flashAtsExpiresAt' in data) || data.flashAtsExpiresAt is string);
     }
 
     function isValidCV(data) {

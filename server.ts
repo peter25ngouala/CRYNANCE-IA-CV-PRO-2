@@ -43,16 +43,18 @@ try {
 
 // Configuration CORS
 app.use(cors({
-  origin: [
-    'https://crynance-seven.vercel.app',
-    'http://localhost:3000',
-    'http://localhost:5173'
-  ],
+  origin: true, // Autorise l'origine de la requête dynamiquement
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
 }));
 
 app.use(express.json());
+
+// Logging for API requests
+app.use('/api', (req, res, next) => {
+  console.log(`[API] ${req.method} ${req.url}`);
+  next();
+});
 
 // Middleware pour vérifier si l'utilisateur est admin
 const isAdmin = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -119,10 +121,6 @@ app.post('/api/ia/consume', async (req, res) => {
       field = 'letterGenerationsRemaining';
       accessField = 'hasLetterAccess';
       expiryField = 'letterExpiresAt';
-    } else if (type === 'optimization') {
-      field = 'optimizationGenerationsRemaining';
-      accessField = 'hasOptimizationAccess';
-      expiryField = 'optimizationExpiresAt';
     } else if (type === 'analysis') {
       field = 'analysisGenerationsRemaining';
       accessField = 'hasAnalysisAccess';
@@ -153,7 +151,7 @@ app.post('/api/ia/consume', async (req, res) => {
 
 // Payment Request Route
 app.post('/api/payment/request', async (req, res) => {
-  const { type, amount, userId, userEmail } = req.body;
+  const { type, amount, userId, userEmail, promoCode } = req.body;
 
   if (!userId) {
     return res.status(401).json({ error: 'ID utilisateur manquant' });
@@ -165,6 +163,7 @@ app.post('/api/payment/request', async (req, res) => {
       userEmail,
       type,
       amount,
+      promoCode: promoCode || null,
       status: 'pending',
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
@@ -184,10 +183,12 @@ app.get('/api/statistiques', async (req, res) => {
   try {
     const usersSnap = await db.collection('users').count().get();
     const cvsSnap = await db.collection('cvs').count().get();
+    const paymentsSnap = await db.collection('payments').count().get();
     
     res.json({
-      totalUsers: usersSnap.data().count + 3200, // Base + Real
-      totalCvs: cvsSnap.data().count + 12450,   // Base + Real
+      totalUsers: usersSnap.data().count,
+      totalCvs: cvsSnap.data().count,
+      totalPayments: paymentsSnap.data().count,
       satisfaction: 4.9
     });
   } catch (error) {
@@ -255,37 +256,65 @@ app.post('/api/admin/confirm-payment', isAdmin, async (req, res) => {
     const userDoc = await userRef.get();
     const userData = userDoc.data();
     
-    const expirationDate = new Date();
-    expirationDate.setHours(expirationDate.getHours() + 24);
-    
-    const expiryIso = expirationDate.toISOString();
     const updates: any = {};
 
     // Update specific plan expiration dates and flags
-    if (planType === 'optimization') {
-      updates.optimizationExpiresAt = expiryIso;
-      updates.optimizationGenerationsRemaining = admin.firestore.FieldValue.increment(10);
-      updates.hasOptimizationAccess = true;
+    if (planType === 'flash_ats') {
+      const expiry = new Date();
+      expiry.setHours(expiry.getHours() + 24);
+      updates.flashAtsExpiresAt = expiry.toISOString();
+      updates.analysisGenerationsRemaining = admin.firestore.FieldValue.increment(2);
+      updates.letterGenerationsRemaining = admin.firestore.FieldValue.increment(3);
+      updates.hasAnalysisAccess = true;
+      updates.hasLetterAccess = true;
+    } else if (planType === 'decouverte') {
+      const expiry = new Date();
+      expiry.setHours(expiry.getHours() + 48);
+      updates.decouverteExpiresAt = expiry.toISOString();
+      updates.cvGenerationsRemaining = admin.firestore.FieldValue.increment(1);
+      updates.letterGenerationsRemaining = admin.firestore.FieldValue.increment(1);
+      updates.analysisGenerationsRemaining = admin.firestore.FieldValue.increment(1); // Included
+      updates.hasAnalysisAccess = true;
+      updates.isPremium = true;
+    } else if (planType === 'pro') {
+      const expiry = new Date();
+      expiry.setDate(expiry.getDate() + 10);
+      updates.proExpiresAt = expiry.toISOString();
+      updates.cvGenerationsRemaining = admin.firestore.FieldValue.increment(5);
+      updates.letterGenerationsRemaining = admin.firestore.FieldValue.increment(100); // "illimitées" in context of 10 days
+      updates.analysisGenerationsRemaining = admin.firestore.FieldValue.increment(100);
+      updates.hasLetterAccess = true;
+      updates.hasAnalysisAccess = true;
+      updates.isPremium = true;
+    } else if (planType === 'elite') {
+      const expiry = new Date();
+      expiry.setMonth(expiry.getMonth() + 1);
+      updates.eliteExpiresAt = expiry.toISOString();
+      updates.cvGenerationsRemaining = admin.firestore.FieldValue.increment(1000); // "illimitées"
+      updates.letterGenerationsRemaining = admin.firestore.FieldValue.increment(1000);
+      updates.analysisGenerationsRemaining = admin.firestore.FieldValue.increment(1000);
+      updates.hasLetterAccess = true;
+      updates.hasAnalysisAccess = true;
+      updates.isPremium = true;
     } else if (planType === 'letter') {
+      const expiry = new Date();
+      expiry.setHours(expiry.getHours() + 24);
+      const expiryIso = expiry.toISOString();
       updates.letterExpiresAt = expiryIso;
       updates.letterGenerationsRemaining = admin.firestore.FieldValue.increment(10);
       updates.hasLetterAccess = true;
     } else if (planType === 'analysis') {
+      const expiry = new Date();
+      expiry.setHours(expiry.getHours() + 24);
+      const expiryIso = expiry.toISOString();
       updates.analysisExpiresAt = expiryIso;
       updates.analysisGenerationsRemaining = admin.firestore.FieldValue.increment(10);
       updates.hasAnalysisAccess = true;
-    } else if (planType === 'modern') {
-      updates.modernExpiresAt = expiryIso;
-      updates.cvGenerationsRemaining = admin.firestore.FieldValue.increment(20);
-      updates.isPremium = true;
-      updates.premiumExpiresAt = expiryIso;
-    } else if (planType === 'classic') {
-      updates.classicExpiresAt = expiryIso;
-      updates.cvGenerationsRemaining = admin.firestore.FieldValue.increment(20);
-      updates.isPremium = true;
-      updates.premiumExpiresAt = expiryIso;
-    } else if (planType === 'creative') {
-      updates.creativeExpiresAt = expiryIso;
+    } else if (planType === 'modern' || planType === 'classic' || planType === 'creative') {
+      const expiry = new Date();
+      expiry.setHours(expiry.getHours() + 24);
+      const expiryIso = expiry.toISOString();
+      updates[`${planType}ExpiresAt`] = expiryIso;
       updates.cvGenerationsRemaining = admin.firestore.FieldValue.increment(20);
       updates.isPremium = true;
       updates.premiumExpiresAt = expiryIso;
@@ -354,7 +383,7 @@ app.get('/api/admin/invoices', isAdmin, async (req, res) => {
 app.get('/api/admin/ia-stats', isAdmin, async (req, res) => {
   try {
     const cvsCount = await db.collection('cvs').count().get();
-    const lettersCount = await db.collection('letters').count().get();
+    const lettersCount = await db.collection('cover_letters').count().get();
     
     // Simple mock for consumption by user for now
     const usersSnap = await db.collection('users').limit(20).get();
@@ -400,9 +429,9 @@ app.get('/api/admin/revenue', isAdmin, async (req, res) => {
         weekly: Array.from({ length: 12 }, (_, i) => ({ name: `Semaine ${i + 1}`, value: Math.floor(Math.random() * 100000) })),
         monthly: Array.from({ length: 6 }, (_, i) => ({ name: `Mois ${i + 1}`, value: Math.floor(Math.random() * 500000) })),
         distribution: [
-          { name: 'Analyse ATS', value: 40 },
-          { name: 'Lettre Motivation', value: 30 },
-          { name: 'Optimisation CV', value: 30 }
+          { name: 'Analyse ATS', value: 30 },
+          { name: 'CV Optimisé', value: 40 },
+          { name: 'Lettre Motivation', value: 30 }
         ]
       }
     });
@@ -440,7 +469,7 @@ app.post('/api/admin/send-message', isAdmin, async (req, res) => {
 // Promo Codes (Admin)
 app.get('/api/admin/promos', isAdmin, async (req, res) => {
   try {
-    const promosSnap = await db.collection('promos').get();
+    const promosSnap = await db.collection('promo_codes').get();
     res.json(promosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
   } catch (error) {
     res.status(500).json({ error: 'Erreur promos' });
@@ -450,7 +479,7 @@ app.get('/api/admin/promos', isAdmin, async (req, res) => {
 app.post('/api/admin/create-promo', isAdmin, async (req, res) => {
   try {
     const promo = req.body;
-    const ref = await db.collection('promos').add({
+    const ref = await db.collection('promo_codes').add({
       ...promo,
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
@@ -462,7 +491,7 @@ app.post('/api/admin/create-promo', isAdmin, async (req, res) => {
 
 app.delete('/api/admin/delete-promo/:id', isAdmin, async (req, res) => {
   try {
-    await db.collection('promos').doc(req.params.id).delete();
+    await db.collection('promo_codes').doc(req.params.id).delete();
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Erreur suppression promo' });
@@ -493,6 +522,11 @@ app.delete('/api/admin/delete-user/:id', isAdmin, async (req, res) => {
   }
 });
 
+// Catch-all for API routes to prevent falling through to HTML
+app.all('/api/*', (req, res) => {
+  res.status(404).json({ error: `Route API non trouvée : ${req.method} ${req.url}` });
+});
+
 // Setup Vite or static serving
 async function setupFrontend() {
   if (process.env.NODE_ENV !== 'production') {
@@ -510,15 +544,13 @@ async function setupFrontend() {
   }
 }
 
-setupFrontend();
+await setupFrontend();
+
+// Local development and Cloud Run
+const PORT = Number(process.env.PORT) || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
 
 // Export for Vercel
 export default app;
-
-// Local development
-if (process.env.NODE_ENV !== 'production') {
-  const PORT = 3000;
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
-}

@@ -15,7 +15,6 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
-import Premium from './pages/Premium';
 import Contact from './pages/Contact';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminPromo from './pages/AdminPromo';
@@ -23,8 +22,7 @@ import AdminReviews from './pages/AdminReviews';
 import AdminEmails from './pages/AdminEmails';
 import Help from './pages/Help';
 import Profile from './pages/Profile';
-import Optimization from './pages/Optimization';
-import ATSAnalysis from './pages/ATSAnalysis';
+import Pricing from './pages/Pricing';
 
 export default function App() {
   return (
@@ -41,9 +39,9 @@ export default function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="/premium" element={<Premium />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/help" element={<Help />} />
+              <Route path="/pricing" element={<Pricing />} />
               
               {/* Protected Routes */}
               <Route path="/dashboard" element={
@@ -74,16 +72,6 @@ export default function App() {
               <Route path="/cover-letter-preview" element={
                 <ProtectedRoute>
                   <CoverLetterPreview />
-                </ProtectedRoute>
-              } />
-              <Route path="/optimization" element={
-                <ProtectedRoute>
-                  <Optimization />
-                </ProtectedRoute>
-              } />
-              <Route path="/ats-analysis" element={
-                <ProtectedRoute>
-                  <ATSAnalysis />
                 </ProtectedRoute>
               } />
 

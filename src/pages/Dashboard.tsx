@@ -372,6 +372,13 @@ export default function Dashboard() {
             Mes lettres motivation ({letters.length})
           </button>
           <button 
+            onClick={() => setActiveTab('ats')}
+            className={`px-8 py-4 rounded-2xl font-black text-sm transition-all flex items-center space-x-2 ${activeTab === 'ats' ? 'bg-slate-900 text-white shadow-xl shadow-slate-900/20' : 'bg-white text-slate-500 hover:bg-slate-50 border border-slate-100'}`}
+          >
+            <Zap size={18} />
+            <span>Analyse ATS</span>
+          </button>
+          <button 
             onClick={() => setActiveTab('payments')}
             className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 ${activeTab === 'payments' ? 'border-primary text-primary' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
           >
@@ -388,12 +395,6 @@ export default function Dashboard() {
             className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 ${activeTab === 'referral' ? 'border-primary text-primary' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
           >
             Parrainage
-          </button>
-          <button 
-            onClick={() => setActiveTab('ats')}
-            className={`pb-4 px-2 text-sm font-bold transition-all border-b-2 ${activeTab === 'ats' ? 'border-primary text-primary' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
-          >
-            Analyse ATS
           </button>
           <button 
             onClick={() => setActiveTab('messages')}
@@ -434,6 +435,9 @@ export default function Dashboard() {
                 {(user?.modernExpiresAt && new Date(user.modernExpiresAt) > new Date()) || 
                  (user?.classicExpiresAt && new Date(user.classicExpiresAt) > new Date()) || 
                  (user?.creativeExpiresAt && new Date(user.creativeExpiresAt) > new Date()) || 
+                 (user?.decouverteExpiresAt && new Date(user.decouverteExpiresAt) > new Date()) || 
+                 (user?.proExpiresAt && new Date(user.proExpiresAt) > new Date()) || 
+                 (user?.eliteExpiresAt && new Date(user.eliteExpiresAt) > new Date()) || 
                  user?.isPremium || user?.role === 'admin' ? (
                   <span className="mt-2 px-3 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase rounded-full">Premium Pro Actif</span>
                 ) : (
@@ -442,16 +446,26 @@ export default function Dashboard() {
               </div>
               
               <div className="pt-6 border-t border-slate-100 space-y-3">
-                {['modern', 'classic', 'creative'].map((type) => {
-                  const expiry = (user as any)?.[`${type}ExpiresAt`];
+                {[
+                  { id: 'decouverte', name: 'Plan DÉCOUVERTE', color: 'emerald' },
+                  { id: 'pro', name: 'Plan PRO', color: 'primary' },
+                  { id: 'elite', name: 'Plan ÉLITE', color: 'slate' }
+                ].map((plan) => {
+                  const expiry = (user as any)?.[`${plan.id}ExpiresAt`];
                   const isActive = expiry && new Date(expiry) > new Date();
                   
+                  const colorClasses = {
+                    emerald: isActive ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-slate-50 border-slate-100 text-slate-400',
+                    primary: isActive ? 'bg-primary/5 border-primary/10 text-primary' : 'bg-slate-50 border-slate-100 text-slate-400',
+                    slate: isActive ? 'bg-slate-900 border-slate-800 text-white' : 'bg-slate-50 border-slate-100 text-slate-400'
+                  };
+
                   return (
-                    <div key={type} className={`p-3 rounded-xl flex flex-col border ${isActive ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
+                    <div key={plan.id} className={`p-3 rounded-xl flex flex-col border transition-all ${colorClasses[plan.color as keyof typeof colorClasses]}`}>
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center space-x-2">
                           <Zap size={14} fill={isActive ? "currentColor" : "none"} />
-                          <span className="text-xs font-bold capitalize">{type}</span>
+                          <span className="text-xs font-bold">{plan.name}</span>
                         </div>
                         <span className="text-[10px] font-medium">
                           {isActive ? "Abonnement actif" : "Inactif"}
@@ -495,175 +509,192 @@ export default function Dashboard() {
           {/* Main Content */}
           <div className="lg:col-span-3">
             {activeTab === 'ats' && (
-          <div className="space-y-8">
-            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
-              <div className="flex items-center justify-between mb-8">
-                <div>
-                  <h2 className="text-2xl font-black text-slate-900">Analyse & Score ATS</h2>
-                  <p className="text-slate-500">Évaluez la performance de votre CV face aux algorithmes de recrutement.</p>
-                </div>
-                <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center">
-                  <ShieldCheck size={28} />
-                </div>
-                  <PremiumLock 
-          feature="analysis"
-          title="Analyse ATS"
-          description="Découvrez comment les logiciels de recrutement voient votre CV et obtenez des conseils."
-          price={200}
-        >
-          <div className="grid md:grid-cols-2 gap-8">
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <label className="text-sm font-black text-slate-400 uppercase tracking-widest">Sélectionnez un CV à analyser</label>
-                <div className="relative">
-                  <input type="file" id="ats-upload" className="hidden" accept=".pdf,.doc,.docx,image/*" onChange={handleAtsFileUpload} />
-                  <label htmlFor="ats-upload" className="flex items-center space-x-2 text-primary hover:text-primary/80 cursor-pointer font-bold text-xs">
-                    {isParsing ? <Loader2 className="animate-spin" size={12} /> : <Upload size={12} />}
-                    <span>Importer un fichier</span>
-                  </label>
-                </div>
-              </div>
-              <div className="space-y-3">
-                {selectedCvForAts?.id === 'uploaded' && (
-                  <button
-                    onClick={() => setSelectedCvForAts(selectedCvForAts)}
-                    className="w-full p-4 rounded-2xl border text-left transition-all flex items-center justify-between border-primary bg-primary/5 ring-2 ring-primary/10"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-primary text-white">
-                        <FileText size={20} />
-                      </div>
-                      <div>
-                        <p className="font-bold text-slate-900">CV Importé</p>
-                        <p className="text-xs text-slate-500">Prêt pour l'analyse</p>
-                      </div>
+              <div className="space-y-8">
+                <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+                    <div>
+                      <h2 className="text-3xl font-black text-slate-900 mb-2">Optimisation ATS</h2>
+                      <p className="text-slate-500">Analysez et optimisez votre CV pour passer les filtres des recruteurs.</p>
                     </div>
-                    <CheckCircle2 size={20} className="text-primary" />
-                  </button>
-                )}
-                {cvs.length === 0 && !selectedCvForAts ? (
-                  <p className="text-slate-500 text-sm italic">Aucun CV trouvé. Créez-en un d'abord.</p>
-                ) : (
-                  cvs.map((cv) => (
-                    <button
-                      key={cv.id}
-                      onClick={() => setSelectedCvForAts(cv)}
-                      className={`w-full p-4 rounded-2xl border text-left transition-all flex items-center justify-between group ${selectedCvForAts?.id === cv.id ? 'border-primary bg-primary/5 ring-2 ring-primary/10' : 'border-slate-100 hover:border-slate-200 bg-slate-50'}`}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${selectedCvForAts?.id === cv.id ? 'bg-primary text-white' : 'bg-white text-slate-400'}`}>
-                          <FileText size={20} />
-                        </div>
-                        <div>
-                          <p className="font-bold text-slate-900">{cv.data.firstName} {cv.data.lastName}</p>
-                          <p className="text-xs text-slate-500">{cv.data.jobTitle}</p>
-                        </div>
+                    <div className="flex items-center space-x-4">
+                      <div className="px-6 py-3 bg-slate-50 rounded-2xl border border-slate-100 text-center">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Analyses Restantes</p>
+                        <p className="text-xl font-black text-slate-900">{user?.analysisGenerationsRemaining || 0}</p>
                       </div>
-                      {selectedCvForAts?.id === cv.id && <CheckCircle2 size={20} className="text-primary" />}
-                    </button>
-                  ))
-                )}
-              </div>
-
-              <button
-                disabled={!selectedCvForAts || isAnalyzing}
-                onClick={async () => {
-                  if (!selectedCvForAts) return;
-                  setIsAnalyzing(true);
-                  try {
-                    // Consommer un crédit
-                    const consumeRes = await api.ia.consume('analysis');
-                    if (!consumeRes.ok) {
-                      const err = await consumeRes.json();
-                      throw new Error(err.error || "Erreur lors de la consommation du crédit");
-                    }
-
-                    const result = await scoreCV(selectedCvForAts.data);
-                    setAtsResult(result);
-                    setNotification({ message: "Analyse terminée !", type: 'success' });
-                  } catch (err: any) {
-                    console.error(err);
-                    setNotification({ message: err.message || "Erreur lors de l'analyse", type: 'error' });
-                  } finally {
-                    setIsAnalyzing(false);
-                  }
-                }}
-                className="w-full mt-8 bg-slate-900 text-white py-4 rounded-2xl font-black flex items-center justify-center space-x-3 hover:bg-primary transition-all shadow-xl shadow-slate-200 disabled:opacity-50"
-              >
-                {isAnalyzing ? <Loader2 className="animate-spin" size={20} /> : <Zap size={20} />}
-                <span>Lancer l'analyse ATS</span>
-              </button>
-            </div>
-
-            <div className="bg-slate-50 rounded-[2rem] p-8 border border-slate-100 min-h-[400px] flex flex-col items-center justify-center text-center">
-              {atsResult ? (
-                <div className="w-full text-left space-y-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-black text-slate-900">Résultats de l'analyse</h3>
-                    <div className={`px-4 py-2 rounded-2xl font-black text-2xl ${atsResult.score >= 80 ? 'bg-emerald-100 text-emerald-600' : atsResult.score >= 60 ? 'bg-amber-100 text-amber-600' : 'bg-red-100 text-red-600'}`}>
-                      {atsResult.score}/100
                     </div>
                   </div>
 
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center space-x-2">
-                        <CheckCircle2 size={14} className="text-emerald-500" />
-                        <span>Points Forts</span>
-                      </h4>
-                      <ul className="space-y-2">
-                        {atsResult.strengths.map((s: string, i: number) => (
-                          <li key={i} className="text-sm text-slate-700 flex items-start space-x-2">
-                            <span className="text-emerald-500 mt-1">•</span>
-                            <span>{s}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    <div>
-                      <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center space-x-2">
-                        <AlertCircle size={14} className="text-amber-500" />
-                        <span>Points d'amélioration</span>
-                      </h4>
-                      <ul className="space-y-2">
-                        {atsResult.weaknesses.map((w: string, i: number) => (
-                          <li key={i} className="text-sm text-slate-700 flex items-start space-x-2">
-                            <span className="text-amber-500 mt-1">•</span>
-                            <span>{w}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
-                      <h4 className="text-xs font-black text-primary uppercase tracking-widest mb-2">Conseil d'expert</h4>
-                      <p className="text-sm text-slate-700 italic">
-                        {atsResult.advice[0]}
+                  {!user?.hasAnalysisAccess && (
+                    <div className="p-8 bg-amber-50 border border-amber-100 rounded-[2rem] text-center mb-8">
+                      <Zap className="mx-auto text-amber-500 mb-4" size={48} />
+                      <h3 className="text-xl font-black text-amber-900 mb-2">Accès Premium Requis</h3>
+                      <p className="text-amber-800 mb-6 max-w-md mx-auto">
+                        L'optimisation ATS est une fonctionnalité exclusive. Souscrivez à un plan Premium ou achetez le pack FLASH ATS pour y accéder.
                       </p>
+                      <Link to="/premium" className="inline-flex items-center space-x-2 bg-amber-500 text-white px-8 py-4 rounded-2xl font-black hover:bg-amber-600 transition-all shadow-lg shadow-amber-500/20">
+                        <span>Débloquer maintenant</span>
+                        <ArrowRight size={18} />
+                      </Link>
+                    </div>
+                  )}
+
+                  <div className="grid md:grid-cols-2 gap-8">
+                    <div className="space-y-6">
+                      <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                        <h4 className="font-black text-slate-900 mb-4 flex items-center space-x-2">
+                          <FileText size={20} className="text-primary" />
+                          <span>1. Sélectionnez un CV</span>
+                        </h4>
+                        <div className="space-y-3">
+                          {cvs.length === 0 ? (
+                            <p className="text-sm text-slate-500 text-center py-4 italic">Aucun CV généré pour le moment.</p>
+                          ) : (
+                            cvs.map((cv) => (
+                              <button
+                                key={cv.id}
+                                onClick={() => setSelectedCvForAts(cv)}
+                                className={`w-full p-4 rounded-2xl border transition-all text-left flex items-center justify-between ${selectedCvForAts?.id === cv.id ? 'bg-primary/10 border-primary text-primary' : 'bg-white border-slate-100 text-slate-600 hover:border-slate-200'}`}
+                              >
+                                <div className="flex items-center space-x-3">
+                                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${selectedCvForAts?.id === cv.id ? 'bg-primary text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                    <FileText size={18} />
+                                  </div>
+                                  <div>
+                                    <p className="font-bold text-sm">{cv.data.personalInfo.firstName} {cv.data.personalInfo.lastName}</p>
+                                    <p className="text-[10px] opacity-70">{cv.data.personalInfo.jobTitle}</p>
+                                  </div>
+                                </div>
+                                {selectedCvForAts?.id === cv.id && <CheckCircle2 size={18} />}
+                              </button>
+                            ))
+                          )}
+                        </div>
+                        
+                        <div className="mt-6 pt-6 border-t border-slate-200">
+                          <p className="text-xs font-bold text-slate-400 uppercase mb-4">Ou importez un CV externe</p>
+                          <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-200 rounded-3xl cursor-pointer hover:bg-slate-50 transition-all group">
+                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                              {isParsing ? (
+                                <Loader2 className="animate-spin text-primary mb-2" size={24} />
+                              ) : (
+                                <Upload className="text-slate-400 group-hover:text-primary transition-colors mb-2" size={24} />
+                              )}
+                              <p className="text-xs font-bold text-slate-500">Cliquez pour importer (PDF/DOCX)</p>
+                            </div>
+                            <input type="file" className="hidden" accept=".pdf,.docx" onChange={handleAtsFileUpload} />
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                        <h4 className="font-black text-slate-900 mb-4 flex items-center space-x-2">
+                          <Zap size={20} className="text-amber-500" />
+                          <span>2. Lancer l'Analyse</span>
+                        </h4>
+                        
+                        {selectedCvForAts ? (
+                          <div className="space-y-4">
+                            <div className="p-4 bg-white rounded-2xl border border-slate-100">
+                              <p className="text-xs font-bold text-slate-400 uppercase mb-1">CV Sélectionné</p>
+                              <p className="font-black text-slate-900">{selectedCvForAts.data.personalInfo.firstName} {selectedCvForAts.data.personalInfo.lastName}</p>
+                              <p className="text-xs text-slate-500">{selectedCvForAts.data.personalInfo.jobTitle}</p>
+                            </div>
+                            
+                            <button
+                              disabled={isAnalyzing || !user?.hasAnalysisAccess || (user?.analysisGenerationsRemaining || 0) <= 0}
+                              onClick={async () => {
+                                setIsAnalyzing(true);
+                                try {
+                                  const result = await scoreCV(selectedCvForAts.data);
+                                  setAtsResult(result);
+                                  await api.auth.consumeCredit('analysis');
+                                  await refreshProfile();
+                                  setNotification({ message: "Analyse terminée !", type: 'success' });
+                                } catch (err) {
+                                  console.error(err);
+                                  setNotification({ message: "Erreur lors de l'analyse", type: 'error' });
+                                } finally {
+                                  setIsAnalyzing(false);
+                                }
+                              }}
+                              className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black flex items-center justify-center space-x-2 hover:bg-slate-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-slate-900/20"
+                            >
+                              {isAnalyzing ? (
+                                <Loader2 className="animate-spin" size={20} />
+                              ) : (
+                                <>
+                                  <Zap size={20} />
+                                  <span>Analyser maintenant</span>
+                                </>
+                              )}
+                            </button>
+                            
+                            {(!user?.hasAnalysisAccess || (user?.analysisGenerationsRemaining || 0) <= 0) && (
+                              <p className="text-[10px] text-rose-500 font-bold text-center">
+                                Crédits insuffisants ou accès expiré.
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-center py-12">
+                            <FileText className="mx-auto text-slate-200 mb-4" size={48} />
+                            <p className="text-sm text-slate-400 font-medium">Sélectionnez un CV à gauche pour commencer</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {atsResult && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="p-6 bg-white rounded-3xl border border-slate-100 shadow-xl"
+                        >
+                          <div className="flex items-center justify-between mb-6">
+                            <h4 className="font-black text-slate-900">Résultat de l'Analyse</h4>
+                            <div className={`px-4 py-2 rounded-xl font-black text-xl ${atsResult.score >= 80 ? 'bg-emerald-100 text-emerald-700' : atsResult.score >= 60 ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'}`}>
+                              {atsResult.score}%
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-4">
+                            <div>
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Points Forts</p>
+                              <div className="flex flex-wrap gap-2">
+                                {atsResult.strengths.map((s: string, i: number) => (
+                                  <span key={i} className="px-3 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-lg border border-emerald-100">
+                                    {s}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">À Améliorer</p>
+                              <div className="flex flex-wrap gap-2">
+                                {atsResult.weaknesses.map((w: string, i: number) => (
+                                  <span key={i} className="px-3 py-1 bg-rose-50 text-rose-700 text-[10px] font-bold rounded-lg border border-rose-100">
+                                    {w}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="pt-4 border-t border-slate-100">
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Conseil Expert</p>
+                              <p className="text-xs text-slate-600 leading-relaxed italic">
+                                "{atsResult.recommendations[0]}"
+                              </p>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
                     </div>
                   </div>
                 </div>
-              ) : (
-                <>
-                  <div className="w-20 h-20 bg-white rounded-3xl shadow-sm flex items-center justify-center text-slate-300 mb-6">
-                    <Search size={40} />
-                  </div>
-                  <h3 className="text-xl font-bold text-slate-900 mb-2">En attente d'analyse</h3>
-                  <p className="text-slate-500 text-sm max-w-xs">
-                    Sélectionnez un CV et cliquez sur le bouton pour obtenir votre score ATS et des conseils personnalisés.
-                  </p>
-                </>
-              )}
-            </div>
-          </div>
-        </PremiumLock>
-      </div>
-    </div>
-  </div>
-)}
+              </div>
+            )}
 
-        {activeTab === 'referral' && (
+            {activeTab === 'referral' && (
           <div className="space-y-8">
             <div className="bg-slate-900 rounded-[2.5rem] p-10 md:p-16 relative overflow-hidden text-white">
               <div className="absolute top-0 right-0 -mt-20 -mr-20 w-64 h-64 bg-primary/20 rounded-full blur-3xl"></div>
@@ -750,17 +781,23 @@ export default function Dashboard() {
                     <p className="text-3xl font-black text-slate-900">{user?.cvGenerationsRemaining || 0}</p>
                   </div>
                   <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 text-center">
-                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Lettres Restantes</p>
-                    <p className="text-3xl font-black text-slate-900">{user?.letterGenerationsRemaining || 0}</p>
-                  </div>
-                  <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 text-center">
-                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Optimisations</p>
-                    <p className="text-3xl font-black text-slate-900">{user?.optimizationGenerationsRemaining || 0}</p>
-                  </div>
-                  <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 text-center">
                     <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Analyses ATS</p>
-                    <p className="text-3xl font-black text-slate-900">{user?.analysisGenerationsRemaining || 0}</p>
+                    <div className="flex flex-col items-center">
+                      <p className="text-3xl font-black text-slate-900">{user?.analysisGenerationsRemaining || 0}</p>
+                      {user?.flashAtsExpiresAt && new Date(user.flashAtsExpiresAt) > new Date() && (
+                        <div className="mt-1 flex items-center space-x-1 text-rose-500 text-[10px] font-black uppercase">
+                          <Clock size={10} />
+                          <CountdownTimer expiryDate={user.flashAtsExpiresAt} onExpire={refreshProfile} />
+                        </div>
+                      )}
+                    </div>
                   </div>
+                  {user?.flashAtsExpiresAt && new Date(user.flashAtsExpiresAt) > new Date() && (
+                    <div className="col-span-2 p-6 bg-emerald-50 rounded-3xl border border-emerald-100 text-center">
+                      <p className="text-xs font-black text-emerald-600 uppercase tracking-widest mb-1">Téléchargements CV Restants (FLASH ATS)</p>
+                      <p className="text-3xl font-black text-emerald-700">{user?.cvDownloadsRemaining || 0}</p>
+                    </div>
+                  )}
                 </div>
                 <div className="mt-6 p-4 bg-amber-50 border border-amber-100 rounded-2xl">
                   <p className="text-xs text-amber-800 font-medium leading-relaxed">

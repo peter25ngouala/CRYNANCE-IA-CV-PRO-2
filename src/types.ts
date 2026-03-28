@@ -30,6 +30,7 @@ export interface User {
   address?: string;
   bio?: string;
   status?: string;
+  plan?: string;
 }
 
 export interface CVSections {
@@ -47,6 +48,16 @@ export interface CVSections {
   profile: string;
   divers: string;
   languages: string;
+}
+
+export interface TextStyleSettings {
+  fontFamily: 'Lato' | 'Roboto' | 'Montserrat' | 'Inter';
+  fontSize: number; // in pt
+  lineHeight: number;
+  isBold: boolean;
+  isItalic: boolean;
+  textAlign: 'left' | 'center' | 'justify';
+  isCompact: boolean;
 }
 
 export interface CVData {
@@ -67,14 +78,22 @@ export interface CVData {
   interests: string[];
   languagesList: LanguageItem[];
   language: 'fr' | 'en';
-  template: 'modern' | 'classic' | 'creative' | 'blue' | 'pink' | 'dark' | 'orange' | 'dark-gold' | 'dark-minimal' | 'creative-gradient';
+  template: string;
   isCompact?: boolean;
+  isLongFormat?: boolean;
+  primaryColor?: string;
+  fontFamily?: string;
+  address?: string;
   jobTitle?: string;
   level?: string;
   sections?: CVSections;
   website?: string;
   customSections?: CustomSection[];
   layout?: CVLayout;
+  textStyle?: TextStyleSettings;
+  hiddenSections?: string[];
+  isShortVersion?: boolean;
+  sectionOrder?: string[];
 }
 
 export interface CVLayout {

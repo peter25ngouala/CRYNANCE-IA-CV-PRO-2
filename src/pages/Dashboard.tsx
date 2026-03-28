@@ -560,8 +560,8 @@ export default function Dashboard() {
                                     <FileText size={18} />
                                   </div>
                                   <div>
-                                    <p className="font-bold text-sm">{cv.data.personalInfo.firstName} {cv.data.personalInfo.lastName}</p>
-                                    <p className="text-[10px] opacity-70">{cv.data.personalInfo.jobTitle}</p>
+                                    <p className="font-bold text-sm">{cv.data?.firstName} {cv.data?.lastName}</p>
+                                    <p className="text-[10px] opacity-70">{cv.data?.jobTitle}</p>
                                   </div>
                                 </div>
                                 {selectedCvForAts?.id === cv.id && <CheckCircle2 size={18} />}
@@ -598,8 +598,8 @@ export default function Dashboard() {
                           <div className="space-y-4">
                             <div className="p-4 bg-white rounded-2xl border border-slate-100">
                               <p className="text-xs font-bold text-slate-400 uppercase mb-1">CV Sélectionné</p>
-                              <p className="font-black text-slate-900">{selectedCvForAts.data.personalInfo.firstName} {selectedCvForAts.data.personalInfo.lastName}</p>
-                              <p className="text-xs text-slate-500">{selectedCvForAts.data.personalInfo.jobTitle}</p>
+                              <p className="font-black text-slate-900">{selectedCvForAts.data?.firstName} {selectedCvForAts.data?.lastName}</p>
+                              <p className="text-xs text-slate-500">{selectedCvForAts.data?.jobTitle}</p>
                             </div>
                             
                             <button
@@ -833,7 +833,7 @@ export default function Dashboard() {
                             <button onClick={() => deleteCv(cv.id)} className="p-2 text-slate-400 hover:text-red-500"><Trash2 size={18} /></button>
                           </div>
                         </div>
-                        <h3 className="font-bold text-slate-900 mb-1">{cv.data.firstName} {cv.data.lastName}</h3>
+                        <h3 className="font-bold text-slate-900 mb-1">{cv.data?.firstName} {cv.data?.lastName}</h3>
                         <p className="text-sm text-slate-500 mb-4">Modifié le {cv.createdAt ? new Date(cv.createdAt).toLocaleDateString() : 'Date inconnue'}</p>
                         <button 
                           onClick={() => {
@@ -890,7 +890,7 @@ export default function Dashboard() {
                             <button onClick={() => deleteLetter(letter.id)} className="p-2 text-slate-400 hover:text-red-500"><Trash2 size={18} /></button>
                           </div>
                         </div>
-                        <h3 className="font-bold text-slate-900 mb-1">{letter.data.jobTitle || "Lettre de motivation"}</h3>
+                        <h3 className="font-bold text-slate-900 mb-1">{letter.data?.jobTitle || "Lettre de motivation"}</h3>
                         <p className="text-sm text-slate-500 mb-4">Modifiée le {letter.createdAt ? new Date(letter.createdAt).toLocaleDateString() : 'Date inconnue'}</p>
                         <button 
                           onClick={() => {

@@ -3,10 +3,11 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Trash2, ChevronRight, ChevronLeft, Sparkles, Image as ImageIcon, Loader2, CheckCircle2, X, Upload, User as UserIcon, Zap } from 'lucide-react';
 import { useEffect } from 'react';
+import { ALL_TEMPLATES } from '../constants/templates';
 import { CVData } from '../types';
 import { generateProfessionalCV } from '../services/geminiService';
 import PremiumLock from '../components/PremiumLock';
-import { useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { storage } from '../utils/storage';
 import { useAuth } from '../context/AuthContext';
@@ -15,6 +16,7 @@ export default function CVForm() {
   const [step, setStep] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const { user, refreshProfile } = useAuth();
 
@@ -34,10 +36,17 @@ export default function CVForm() {
       interests: [''],
       languagesList: [{ name: '', level: '' }],
       language: 'fr',
-      template: 'modern',
+      template: 'blue-sidebar',
       jobTitle: ''
     }
   });
+
+  useEffect(() => {
+    const templateId = searchParams.get('template') || searchParams.get('templateId');
+    if (templateId) {
+      setValue('template', templateId);
+    }
+  }, [searchParams, setValue]);
 
   React.useEffect(() => {
     const parsed = storage.loadCV();
@@ -504,27 +513,21 @@ export default function CVForm() {
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-8"
               >
-                <div className="grid md:grid-cols-1 gap-8">
                   <div className="space-y-4">
-                    <label className="text-sm font-semibold text-slate-700">Template</label>
+                    <label className="text-sm font-semibold text-slate-700">Modèle de CV</label>
                     <select {...register("template")} className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 outline-none focus:border-primary">
-                      <option value="modern">Moderne (Élégant)</option>
-                      <option value="blue">Moderne (Pro Bleu)</option>
-                      <option value="dark-minimal">Moderne (Épuré)</option>
-                      {(!user?.flashAtsExpiresAt || new Date(user.flashAtsExpiresAt) <= new Date() || user?.isPremium || user?.role === 'admin') && (
-                        <>
-                          <option value="classic">Classique (Traditionnel)</option>
-                          <option value="creative">Créatif (Original)</option>
-                        </>
-                      )}
+                      {ALL_TEMPLATES.map(t => (
+                        <option key={t.id} value={t.id}>
+                          {t.name} ({t.category}) {t.isPremium ? '💎' : '🆓'}
+                        </option>
+                      ))}
                     </select>
                     {user?.flashAtsExpiresAt && new Date(user.flashAtsExpiresAt) > new Date() && !(user?.isPremium || user?.role === 'admin') && (
                       <p className="text-xs text-amber-600 font-bold">
-                        ℹ️ Votre pack FLASH ATS vous donne accès aux styles Élégant, Pro Bleu et Épuré.
+                        ℹ️ Votre pack FLASH ATS vous donne accès aux styles de base. Les modèles Premium nécessitent un abonnement Pro.
                       </p>
                     )}
                   </div>
-                </div>
 
                 <div className="bg-primary-light p-6 rounded-2xl border border-primary/10">
                   <div className="flex items-start space-x-3">

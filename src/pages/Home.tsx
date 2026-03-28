@@ -5,15 +5,42 @@ import {
   FileText, Sparkles, ShieldCheck, Zap, ArrowRight, 
   CheckCircle2, Users, Flame, Star, MousePointer2, 
   Download, Globe, Languages, Layout, Briefcase,
-  Check, X, Search, CreditCard
+  Check, X, CreditCard, Search, Filter, Crown
 } from 'lucide-react';
 import { api } from '../services/api';
 import { storage } from '../utils/storage';
+import { ALL_TEMPLATES } from '../constants/templates';
+import { TemplateThumbnail } from '../components/TemplateThumbnail';
 import Testimonials from '../components/Testimonials';
 import PricingSection from '../components/PricingSection';
 
+// Lazy render component for performance
+const LazyRender = ({ children }: { children: React.ReactNode }) => {
+  const [isVisible, setIsVisible] = useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '200px' }
+    );
+
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, []);
+
+  return <div ref={ref}>{isVisible ? children : <div className="h-64 bg-slate-50 rounded-2xl animate-pulse" />}</div>;
+};
+
 export default function Home() {
   const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState('Tous');
   const [stats, setStats] = useState({
     totalCvs: 12450,
     totalUsers: 3200,
@@ -21,24 +48,12 @@ export default function Home() {
     satisfaction: 4.9
   });
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState<'all' | 'cv' | 'letter'>('all');
+  const categories = ['Tous', 'Professionnel', 'Moderne', 'Créatif', 'Exécutif', 'Minimaliste', 'Technique'];
 
-  const templates = [
-    { id: 1, name: "Modern CV", type: "cv", img: "https://picsum.photos/seed/modern-cv/600/800", tag: "Le plus populaire", category: "Moderne" },
-    { id: 2, name: "Classic CV", type: "cv", img: "https://picsum.photos/seed/classic-cv/600/800", tag: "Intemporel", category: "Professionnel" },
-    { id: 3, name: "Creative CV", type: "cv", img: "https://picsum.photos/seed/creative-cv/600/800", tag: "Original", category: "Créatif" },
-    { id: 4, name: "Executive CV", type: "cv", img: "https://picsum.photos/seed/executive-cv/600/800", tag: "Premium", category: "Direction" },
-    { id: 5, name: "Minimalist CV", type: "cv", img: "https://picsum.photos/seed/minimal-cv/600/800", tag: "Épuré", category: "Minimaliste" },
-    { id: 6, name: "Lettre de Motivation Standard", type: "letter", img: "https://picsum.photos/seed/letter-std/600/800", tag: "Essentiel", category: "Standard" },
-    { id: 7, name: "Lettre de Motivation Créative", type: "letter", img: "https://picsum.photos/seed/letter-creative/600/800", tag: "Design", category: "Créatif" },
-    { id: 8, name: "Lettre de Motivation Executive", type: "letter", img: "https://picsum.photos/seed/letter-exec/600/800", tag: "Sérieux", category: "Direction" },
-  ];
-
-  const filteredTemplates = templates.filter(t => {
+  const filteredTemplates = ALL_TEMPLATES.filter(t => {
     const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                          t.category.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = activeCategory === 'all' || t.type === activeCategory;
+    const matchesCategory = activeCategory === 'Tous' || t.category === activeCategory;
     return matchesSearch && matchesCategory;
   });
 
@@ -90,12 +105,12 @@ export default function Home() {
               <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start space-y-4 sm:space-y-0 sm:space-x-4">
                 <button 
                   onClick={() => {
-                    storage.clearCV();
-                    navigate('/create-cv');
+                    const element = document.getElementById('templates');
+                    element?.scrollIntoView({ behavior: 'smooth' });
                   }}
                   className="w-full sm:w-auto bg-primary text-white px-10 py-5 rounded-2xl font-bold text-lg hover:bg-primary-dark transition-all shadow-2xl shadow-primary/30 flex items-center justify-center group"
                 >
-                  Créer mon CV maintenant
+                  Choisir un modèle
                   <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" size={20} />
                 </button>
                 <Link to="/pricing" className="w-full sm:w-auto bg-white text-slate-700 border border-slate-200 px-10 py-5 rounded-2xl font-bold text-lg hover:bg-slate-50 transition-all flex items-center justify-center space-x-2">
@@ -189,7 +204,137 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 2. SECTION COMMENT ÇA MARCHE */}
+      {/* 2. TEMPLATE GALLERY (Canva Style) */}
+      <section id="templates" className="py-24 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-8">
+            <div className="max-w-xl">
+              <h2 className="text-4xl font-black text-slate-900 mb-4 tracking-tight">Choisissez votre modèle</h2>
+              <p className="text-slate-600 text-lg">Plus de 110 designs professionnels optimisés par l'IA pour booster votre carrière.</p>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+              <div className="relative group">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" size={20} />
+                <input 
+                  type="text"
+                  placeholder="Rechercher un style..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full sm:w-64 pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium"
+                />
+              </div>
+              <div className="relative">
+                <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                <select 
+                  value={activeCategory}
+                  onChange={(e) => setActiveCategory(e.target.value)}
+                  className="w-full sm:w-48 pl-12 pr-10 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium appearance-none"
+                >
+                  {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Categories Pills */}
+          <div className="flex flex-wrap gap-2 mb-12">
+            {categories.map(cat => (
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(cat)}
+                className={`px-6 py-2.5 rounded-full text-sm font-bold transition-all ${
+                  activeCategory === cat 
+                    ? 'bg-primary text-white shadow-lg shadow-primary/20' 
+                    : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+            <AnimatePresence mode="popLayout">
+              {filteredTemplates.map((template, i) => (
+                <motion.div
+                  key={template.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ duration: 0.3, delay: Math.min(i * 0.05, 0.5) }}
+                  className="group relative"
+                >
+                  <div 
+                    onClick={() => {
+                      storage.clearCV();
+                      navigate(`/create-cv?templateId=${template.id}`);
+                    }}
+                    className="cursor-pointer"
+                  >
+                    <div className="relative overflow-hidden rounded-2xl shadow-sm group-hover:shadow-2xl transition-all duration-500 bg-slate-100">
+                      <LazyRender>
+                        <div className="transform group-hover:scale-105 transition-transform duration-700">
+                          <TemplateThumbnail 
+                            templateId={template.id}
+                            baseTemplate={template.baseTemplate}
+                            name={template.name}
+                          />
+                        </div>
+                      </LazyRender>
+                      
+                      {/* Hover Overlay */}
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center p-6">
+                        <button className="bg-white text-slate-900 px-8 py-3 rounded-xl font-bold transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300 flex items-center space-x-2">
+                          <span>Choisir ce style</span>
+                          <ArrowRight size={18} />
+                        </button>
+                      </div>
+
+                      {/* Premium Badge */}
+                      {template.isPremium && (
+                        <div className="absolute top-4 right-4 bg-amber-400 text-amber-950 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center space-x-1 shadow-lg">
+                          <Crown size={12} fill="currentColor" />
+                          <span>Premium</span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="mt-4 flex items-center justify-between">
+                      <div>
+                        <h3 className="font-bold text-slate-900 group-hover:text-primary transition-colors">{template.name}</h3>
+                        <p className="text-xs text-slate-500 font-medium">{template.category}</p>
+                      </div>
+                      <div className="w-8 h-8 rounded-full border-2 border-slate-100 flex items-center justify-center group-hover:bg-primary group-hover:border-primary transition-all">
+                        <ArrowRight size={14} className="text-slate-400 group-hover:text-white" />
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+
+          {filteredTemplates.length === 0 && (
+            <div className="text-center py-20 bg-slate-50 rounded-[3rem] border-2 border-dashed border-slate-200">
+              <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-6 text-slate-400">
+                <Search size={32} />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">Aucun modèle trouvé</h3>
+              <p className="text-slate-500">Essayez d'ajuster vos filtres ou votre recherche.</p>
+              <button 
+                onClick={() => { setSearchQuery(''); setActiveCategory('Tous'); }}
+                className="mt-6 text-primary font-bold hover:underline"
+              >
+                Réinitialiser les filtres
+              </button>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* 3. SECTION COMMENT ÇA MARCHE */}
       <section className="py-24 bg-slate-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-20">
@@ -242,103 +387,6 @@ export default function Home() {
                 <p className="text-slate-600 leading-relaxed">{item.desc}</p>
               </motion.div>
             ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="models" className="py-24 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-3xl mx-auto mb-16">
-            <h2 className="text-3xl font-black text-slate-900 mb-6">Nos Modèles de CV & Lettres</h2>
-            <p className="text-base text-slate-600 mb-10">Des designs conçus par des experts en recrutement pour maximiser vos chances.</p>
-            
-            {/* Search and Filters */}
-            <div className="flex flex-col md:flex-row items-center justify-center gap-4 mb-12">
-              <div className="relative w-full max-w-md">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                <input 
-                  type="text" 
-                  placeholder="Rechercher un modèle (ex: Moderne, Créatif...)" 
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium"
-                />
-              </div>
-              <div className="flex bg-slate-100 p-1.5 rounded-2xl">
-                <button 
-                  onClick={() => setActiveCategory('all')}
-                  className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeCategory === 'all' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                  Tous
-                </button>
-                <button 
-                  onClick={() => setActiveCategory('cv')}
-                  className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeCategory === 'cv' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                  CV
-                </button>
-                <button 
-                  onClick={() => setActiveCategory('letter')}
-                  className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${activeCategory === 'letter' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                  Lettres
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid md:grid-cols-3 lg:grid-cols-4 gap-8">
-            <AnimatePresence mode="popLayout">
-              {filteredTemplates.length > 0 ? (
-                filteredTemplates.map((model) => (
-                  <motion.div 
-                    key={model.id}
-                    layout
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    whileHover={{ y: -10 }}
-                    className="group relative"
-                  >
-                    <div className="aspect-[3/4] rounded-[2.5rem] overflow-hidden border border-slate-100 shadow-xl mb-6 relative">
-                      <img src={model.img} alt={model.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" referrerPolicy="no-referrer" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <button 
-                          onClick={() => {
-                            if (model.type === 'cv') {
-                              storage.clearCV();
-                              navigate('/create-cv');
-                            } else {
-                              navigate('/cover-letter');
-                            }
-                          }}
-                          className="bg-white text-slate-900 px-8 py-3 rounded-xl font-bold transform translate-y-4 group-hover:translate-y-0 transition-transform"
-                        >
-                          Utiliser ce modèle
-                        </button>
-                      </div>
-                      {model.tag && (
-                        <div className="absolute top-6 left-6 bg-primary text-white px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest shadow-lg">
-                          {model.tag}
-                        </div>
-                      )}
-                      <div className="absolute bottom-6 right-6 bg-white/90 backdrop-blur-sm text-slate-900 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest">
-                        {model.category}
-                      </div>
-                    </div>
-                    <h3 className="text-xl font-black text-slate-900 text-center">{model.name}</h3>
-                  </motion.div>
-                ))
-              ) : (
-                <div className="col-span-full py-20 text-center">
-                  <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-6 text-slate-400">
-                    <Search size={32} />
-                  </div>
-                  <h3 className="text-xl font-bold text-slate-900 mb-2">Aucun modèle trouvé</h3>
-                  <p className="text-slate-500">Essayez d'autres mots-clés ou changez de catégorie.</p>
-                </div>
-              )}
-            </AnimatePresence>
           </div>
         </div>
       </section>

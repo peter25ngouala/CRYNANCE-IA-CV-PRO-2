@@ -59,6 +59,11 @@ export default function App() {
                   <CVForm />
                 </ProtectedRoute>
               } />
+              <Route path="/cv-form" element={
+                <ProtectedRoute>
+                  <CVForm />
+                </ProtectedRoute>
+              } />
               <Route path="/cv-preview" element={
                 <ProtectedRoute>
                   <CVPreview />
